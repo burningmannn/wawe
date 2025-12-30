@@ -904,9 +904,7 @@ struct WordsView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView(store: store)
-                    .onChange(of: store.wordRepeatLimit) { _ in
-                        store.pruneReachedLimit()
-                    }
+                    .onChange(of: store.wordRepeatLimit) { store.pruneReachedLimit() }
             }
         }
     }
@@ -2192,9 +2190,9 @@ struct SettingsView: View {
             } message: {
                 Text(alertMessage)
             }
-            .onChange(of: store.wordRepeatLimit) { _ in store.pruneReachedLimit() }
-            .onChange(of: store.verbRepeatLimit) { _ in store.pruneReachedLimit() }
-            .onChange(of: store.questionRepeatLimit) { _ in store.pruneReachedLimit() }
+            .onChange(of: store.wordRepeatLimit) { store.pruneReachedLimit() }
+            .onChange(of: store.verbRepeatLimit) { store.pruneReachedLimit() }
+            .onChange(of: store.questionRepeatLimit) { store.pruneReachedLimit() }
         }
     }
     
