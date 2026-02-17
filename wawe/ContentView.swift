@@ -14,6 +14,7 @@ import AppKit
 #endif
 
 import Foundation
+import ImageIO
 
 
 struct FlexNoteTable: Identifiable, Codable, Equatable, Hashable {
@@ -93,6 +94,9 @@ class WordStore: ObservableObject {
     @AppStorage("wordRepeatLimit") var wordRepeatLimit: Int = 30
     @AppStorage("verbRepeatLimit") var verbRepeatLimit: Int = 30
     @AppStorage("questionRepeatLimit") var questionRepeatLimit: Int = 30
+    @AppStorage("learnedWordsTotal") var learnedWordsTotal: Int = 0
+    @AppStorage("learnedVerbsTotal") var learnedVerbsTotal: Int = 0
+    @AppStorage("learnedQuestionsTotal") var learnedQuestionsTotal: Int = 0
 
     @Published var words: [Word] = [] {
         didSet { saveWords() }
@@ -182,6 +186,7 @@ class WordStore: ObservableObject {
     func markCorrect(_ word: Word) {
         guard let idx = words.firstIndex(where: { $0.id == word.id }) else { return }
         words[idx].correctCount += 1
+        recordDailyProgress()
         if words[idx].correctCount >= wordRepeatLimit {
             completeWord(at: idx)
         }
@@ -226,6 +231,7 @@ class WordStore: ObservableObject {
     func markIrregularVerbCorrect(_ verb: IrregularVerb) {
         guard let idx = irregularVerbs.firstIndex(where: { $0.id == verb.id }) else { return }
         irregularVerbs[idx].correctCount += 1
+        recordDailyProgress()
         if irregularVerbs[idx].correctCount >= verbRepeatLimit {
             completeVerb(at: idx)
         }
@@ -259,6 +265,7 @@ class WordStore: ObservableObject {
     func markQuestionCorrect(_ question: QuestionItem) {
         guard let idx = questions.firstIndex(where: { $0.id == question.id }) else { return }
         questions[idx].correctCount += 1
+        recordDailyProgress()
         if questions[idx].correctCount >= questionRepeatLimit {
             completeQuestion(at: idx)
         }
@@ -325,16 +332,19 @@ class WordStore: ObservableObject {
 
     private func completeWord(at index: Int, countAsLearned: Bool = true) {
         guard words.indices.contains(index) else { return }
+        if countAsLearned { learnedWordsTotal += 1 }
         words.remove(at: index)
     }
 
     private func completeVerb(at index: Int, countAsLearned: Bool = true) {
         guard irregularVerbs.indices.contains(index) else { return }
+        if countAsLearned { learnedVerbsTotal += 1 }
         irregularVerbs.remove(at: index)
     }
 
     private func completeQuestion(at index: Int, countAsLearned: Bool = true) {
         guard questions.indices.contains(index) else { return }
+        if countAsLearned { learnedQuestionsTotal += 1 }
         questions.remove(at: index)
     }
 
@@ -543,6 +553,8 @@ class WordStore: ObservableObject {
     func exportBackup() -> URL? {
         do {
             print("Starting export for all sections")
+            
+            let profileBadges = UserDefaults.standard.string(forKey: "profileBadges")
 
             let payload = BackupPayload(
                 words: words,
@@ -553,9 +565,10 @@ class WordStore: ObservableObject {
                 settings: BackupSettings(
                     wordRepeatLimit: wordRepeatLimit,
                     verbRepeatLimit: verbRepeatLimit,
-                    questionRepeatLimit: questionRepeatLimit
+                    questionRepeatLimit: questionRepeatLimit,
+                    profileBadges: profileBadges
                 ),
-                version: "2.0",
+                version: "2.1",
                 exportDate: Date()
             )
 
@@ -696,6 +709,11 @@ class WordStore: ObservableObject {
         wordRepeatLimit = settings.wordRepeatLimit
         verbRepeatLimit = settings.verbRepeatLimit
         questionRepeatLimit = settings.questionRepeatLimit
+        
+        if let badges = settings.profileBadges {
+            UserDefaults.standard.set(badges, forKey: "profileBadges")
+            print("Imported profileBadges: \(badges)")
+        }
 
         removeCompletedWords(countAsLearned: false)
         removeCompletedVerbs(countAsLearned: false)
@@ -806,6 +824,32 @@ class WordStore: ObservableObject {
             }
         }
         return added
+    }
+
+    private func recordDailyProgress() {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let todayKey = formatter.string(from: Date())
+        let defaults = UserDefaults.standard
+        let raw = defaults.string(forKey: "progressDays") ?? ""
+        var set = Set(raw.split(separator: ",").map { String($0) })
+        if !set.contains(todayKey) {
+            set.insert(todayKey)
+            defaults.set(Array(set).sorted().joined(separator: ","), forKey: "progressDays")
+        }
+        let decoder = JSONDecoder()
+        let encoder = JSONEncoder()
+        var map: [String: Int] = [:]
+        if let data = defaults.data(forKey: "progressDayCounts"),
+           let decoded = try? decoder.decode([String:Int].self, from: data) {
+            map = decoded
+        }
+        map[todayKey] = (map[todayKey] ?? 0) + 1
+        if let data = try? encoder.encode(map) {
+            defaults.set(data, forKey: "progressDayCounts")
+        }
     }
 
     // MARK: - Persistence
@@ -934,7 +978,7 @@ struct ContentView: View {
         }
     }
     private var accentColor: Color {
-        appTheme == "dark" ? AppColors.sessionBlue : Color.accentColor
+        appTheme == "dark" ? .white : .black
     }
 
     var body: some View {
@@ -1156,7 +1200,7 @@ struct IrregularVerbsView: View {
                                 Button { viewModel.send(.markCorrect(verb)) } label: {
                                     Label("+1 прогресс", systemImage: "checkmark.circle")
                                 }
-                                .tint(.blue)
+                                .tint(.primary)
                             }
                         }
                         .onDelete(perform: { offsets in viewModel.send(.delete(offsets)) })
@@ -1576,24 +1620,22 @@ struct ImageNoteRow: View {
             AsyncImage(url: URL(string: note.imageURL)) { phase in
                 switch phase {
                 case .empty:
-                    ZStack {
-                        Rectangle().fill(Color.secondary.opacity(0.1))
-                        ProgressView()
-                    }
-                    .frame(height: 160)
-                    .frame(maxWidth: .infinity)
-                case .success(let image):
-                    image.resizable().scaledToFill()
-                        .frame(height: 160)
+                    SkeletonView()
                         .frame(maxWidth: .infinity)
+                        .aspectRatio(16.0/9.0, contentMode: .fit)
+                case .success(let image):
+                    image.resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(16.0/9.0, contentMode: .fit)
                         .clipped()
                 case .failure:
                     ZStack {
                         Rectangle().fill(Color.secondary.opacity(0.1))
                         Image(systemName: "photo").font(.largeTitle).foregroundStyle(.secondary)
                     }
-                    .frame(height: 160)
                     .frame(maxWidth: .infinity)
+                    .aspectRatio(16.0/9.0, contentMode: .fit)
                 @unknown default:
                     EmptyView()
                 }
@@ -1617,11 +1659,11 @@ struct ImageNoteRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         #if os(iOS)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(Color(uiColor: .systemBackground))
         #else
         .background(Color(nsColor: .controlBackgroundColor))
         #endif
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
     }
 }
@@ -1633,9 +1675,38 @@ struct AddImageNoteView: View {
     @State private var title = ""
     @State private var imageURL = ""
     @State private var descriptionMarkdown = ""
+    @State private var isValidResolution = false
+    @State private var isChecking = false
+    @State private var checkMessage = ""
     
     var canSave: Bool {
-        !title.trimmed.isEmpty && URL(string: imageURL.trimmed) != nil
+        !title.trimmed.isEmpty && URL(string: imageURL.trimmed) != nil && isValidResolution
+    }
+    
+    private func checkResolution() {
+        guard let url = URL(string: imageURL.trimmed) else { return }
+        isChecking = true
+        checkMessage = ""
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                let cfData = data as CFData
+                if let src = CGImageSourceCreateWithData(cfData, nil),
+                   let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+                   let w = props[kCGImagePropertyPixelWidth] as? Int,
+                   let h = props[kCGImagePropertyPixelHeight] as? Int {
+                    isValidResolution = (w == 1920 && h == 1080)
+                    checkMessage = isValidResolution ? "ОК 1920×1080" : "Не 1920×1080 (\(w)×\(h))"
+                } else {
+                    isValidResolution = false
+                    checkMessage = "Не удалось определить размер"
+                }
+            } catch {
+                isValidResolution = false
+                checkMessage = "Ошибка загрузки"
+            }
+            isChecking = false
+        }
     }
     
     var body: some View {
@@ -1648,6 +1719,13 @@ struct AddImageNoteView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 #endif
+                    HStack {
+                        Button("Проверить 1920×1080") { checkResolution() }
+                            .disabled(imageURL.trimmed.isEmpty)
+                        Spacer()
+                        if isChecking { ProgressView() }
+                        if !checkMessage.isEmpty { Text(checkMessage).font(.caption).foregroundStyle(.secondary) }
+                    }
                 }
                 Section("Описание") {
                     TextEditor(text: $descriptionMarkdown)
@@ -1692,6 +1770,9 @@ struct EditImageNoteView: View, Identifiable {
     @State private var title: String
     @State private var imageURL: String
     @State private var descriptionMarkdown: String
+    @State private var isValidResolution = true
+    @State private var isChecking = false
+    @State private var checkMessage = ""
     
     init(store: WordStore, note: ImageNote) {
         self.store = store
@@ -1702,7 +1783,7 @@ struct EditImageNoteView: View, Identifiable {
     }
     
     var canSave: Bool {
-        !title.trimmed.isEmpty && URL(string: imageURL.trimmed) != nil
+        !title.trimmed.isEmpty && URL(string: imageURL.trimmed) != nil && isValidResolution
     }
     
     var body: some View {
@@ -1715,6 +1796,36 @@ struct EditImageNoteView: View, Identifiable {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
 #endif
+                    HStack {
+                        Button("Проверить 1920×1080") {
+                            guard let url = URL(string: imageURL.trimmed) else { return }
+                            isChecking = true
+                            checkMessage = ""
+                            Task {
+                                do {
+                                    let (data, _) = try await URLSession.shared.data(from: url)
+                                    let cfData = data as CFData
+                                    if let src = CGImageSourceCreateWithData(cfData, nil),
+                                       let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+                                       let w = props[kCGImagePropertyPixelWidth] as? Int,
+                                       let h = props[kCGImagePropertyPixelHeight] as? Int {
+                                        isValidResolution = (w == 1920 && h == 1080)
+                                        checkMessage = isValidResolution ? "ОК 1920×1080" : "Не 1920×1080 (\(w)×\(h))"
+                                    } else {
+                                        isValidResolution = false
+                                        checkMessage = "Не удалось определить размер"
+                                    }
+                                } catch {
+                                    isValidResolution = false
+                                    checkMessage = "Ошибка загрузки"
+                                }
+                                isChecking = false
+                            }
+                        }
+                        Spacer()
+                        if isChecking { ProgressView() }
+                        if !checkMessage.isEmpty { Text(checkMessage).font(.caption).foregroundStyle(.secondary) }
+                    }
                 }
                 Section("Описание") {
                     TextEditor(text: $descriptionMarkdown)
@@ -1734,8 +1845,10 @@ struct EditImageNoteView: View, Identifiable {
 #if os(iOS)
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Готово") {
-                        store.updateImageNote(note, title: title.trimmed, imageURL: imageURL.trimmed, descriptionMarkdown: descriptionMarkdown)
-                        dismiss()
+                        if canSave {
+                            store.updateImageNote(note, title: title.trimmed, imageURL: imageURL.trimmed, descriptionMarkdown: descriptionMarkdown)
+                            dismiss()
+                        }
                     }
                     .disabled(!canSave)
                 }
@@ -1808,7 +1921,7 @@ struct QuestionsView: View {
                                 Button { viewModel.send(.markCorrect(question)) } label: {
                                     Label("+1 прогресс", systemImage: "checkmark.circle")
                                 }
-                                .tint(.blue)
+                                .tint(.primary)
                             }
                         }
                         .onDelete(perform: { offsets in viewModel.send(.delete(offsets)) })
@@ -2528,9 +2641,9 @@ struct StepProgressView: View {
     
     func stepColor(for step: Int) -> Color {
         if step < currentStep {
-            return .blue // Завершенные шаги
+            return .primary // Завершенные шаги
         } else if step == currentStep {
-            return .blue // Текущий шаг
+            return .primary // Текущий шаг
         } else {
             return .gray.opacity(0.3) // Будущие шаги
         }
@@ -2648,6 +2761,7 @@ struct SettingsView: View {
     @State private var showingAlert = false
     @State private var alertMessage = ""
     @State private var exportShareItem: ExportShareItem?
+    @State private var showingAbout = false
 
     var body: some View {
         NavigationStack {
@@ -2673,6 +2787,15 @@ struct SettingsView: View {
                     }
                 }
 
+                Section {
+                    Button {
+                        showingAbout = true
+                    } label: {
+                        Text("О приложении v1.0")
+                            .foregroundStyle(.primary)
+                    }
+                }
+                
                 Section("Очистка") {
                     Button(role: .destructive) {
                         withAnimation { store.words.removeAll() }
@@ -2709,6 +2832,9 @@ struct SettingsView: View {
             }
             .sheet(item: $exportShareItem) { item in
                 ShareSheet(items: [item.url])
+            }
+            .sheet(isPresented: $showingAbout) {
+                AboutView()
             }
             
             .fileImporter(
@@ -2821,13 +2947,19 @@ extension String {
 }
 
 struct AppColors {
-    static let sessionBlue = Color(red: 0.04, green: 0.52, blue: 1.0)
+    static let sessionBlue = Color.primary
     static let badgeVIP = Color.hex("#FFD60A")
     static let badgeDay1Start = Color.hex("#0A84FF")
     static let badgeDay1End = Color.hex("#5E5CE6")
     static let badge10YR = Color.hex("#64D2FF")
     static let badge8YR = Color.hex("#FF375F")
     static let badgePro = Color.hex("#30D158")
+    static let streak1 = Color.primary
+    static let streak2 = Color.primary
+    static let streak3 = Color.primary
+    static let streak4 = Color.primary
+    static let streak5 = Color.primary
+    static let streak6 = Color.primary
 }
 
 extension Color {
@@ -2867,21 +2999,162 @@ struct ProfileView: View {
     @State private var showAvatarPicker = false
     @State private var showBgPicker = false
 
+    private var progressDaysSet: Set<String> {
+        let raw = UserDefaults.standard.string(forKey: "progressDays") ?? ""
+        return Set(raw.split(separator: ",").map { String($0) })
+    }
+    private var progressDaysCount: Int { progressDaysSet.count }
+    private var streakCount: Int {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        var count = 0
+        var day = Date()
+        while progressDaysSet.contains(formatter.string(from: day)) {
+            count += 1
+            day = Calendar.current.date(byAdding: .day, value: -1, to: day) ?? day
+        }
+        return count
+    }
+    private var last30Keys: [String] {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return (0..<30).map { offset in
+            let d = Calendar.current.date(byAdding: .day, value: -offset, to: Date()) ?? Date()
+            return formatter.string(from: d)
+        }.reversed()
+    }
+    private var currentStreakKeys: Set<String> {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        var keys = Set<String>()
+        var day = Date()
+        var left = streakCount
+        while left > 0 {
+            keys.insert(formatter.string(from: day))
+            day = Calendar.current.date(byAdding: .day, value: -1, to: day) ?? day
+            left -= 1
+        }
+        return keys
+    }
+    private func streakTier(_ count: Int) -> Int {
+        if count >= 120 { return 6 }
+        if count >= 60 { return 5 }
+        if count >= 30 { return 4 }
+        if count >= 14 { return 3 }
+        if count >= 7 { return 2 }
+        if count >= 3 { return 1 }
+        return 0
+    }
+    private func tierColor(for tier: Int) -> Color {
+        switch tier {
+        case 6: return AppColors.streak6
+        case 5: return AppColors.streak5
+        case 4: return AppColors.streak4
+        case 3: return AppColors.streak3
+        case 2: return AppColors.streak2
+        case 1: return AppColors.streak1
+        default: return Color.secondary.opacity(0.5)
+        }
+    }
+    private var streakTierValue: Int { streakTier(streakCount) }
+    private var allStreakBadges: [String] { ["7DAY", "30DAY", "60DAY", "120DAY", "210DAY", "1YR"] }
+    private var unlockedStreakBadges: [String] {
+        var res: [String] = []
+        if streakCount >= 7 { res.append("7DAY") }
+        if streakCount >= 30 { res.append("30DAY") }
+        if streakCount >= 60 { res.append("60DAY") }
+        if streakCount >= 120 { res.append("120DAY") }
+        if streakCount >= 210 { res.append("210DAY") }
+        if streakCount >= 365 { res.append("1YR") }
+        return res
+    }
+    private func badgeDisplayName(_ name: String) -> String {
+        switch name {
+        case "BASE": return "BASE"
+        case "PRO": return "PRO"
+        case "VIP": return "VIP"
+        case "7DAY": return "7 DAY"
+        case "30DAY": return "30 DAY"
+        case "60DAY": return "60 DAY"
+        case "120DAY": return "120 DAY"
+        case "210DAY": return "210 DAY"
+        case "1YR": return "1 YR"
+        case "LEARNED100": return "100 Words"
+        case "LEARNED500": return "500 Words"
+        case "LEARNED1000": return "1000 Words"
+        default: return name
+        }
+    }
+    private func badgeStyle(_ name: String) -> BadgeStyle {
+        switch name {
+        case "BASE": return .base
+        case "PRO": return .pro
+        case "VIP": return .vip
+        case "7DAY": return .streak(days: 7)
+        case "30DAY": return .streak(days: 30)
+        case "60DAY": return .streak(days: 60)
+        case "120DAY": return .streak(days: 120)
+        case "210DAY": return .streak(days: 210)
+        case "1YR": return .streak(days: 365)
+        case "LEARNED100": return .learned(count: 100)
+        case "LEARNED500": return .learned(count: 500)
+        case "LEARNED1000": return .learned(count: 1000)
+        default: return .base
+        }
+    }
+
     private var badges: [String] { profileBadgesRaw.split(separator: ",").map { String($0) } }
     private func setBadges(_ b: [String]) { profileBadgesRaw = b.joined(separator: ",") }
 
-    private let availableBadges = ["Base", "VIP", "DAY1", "10YR", "Pro", "8YR"]
-
+    private let availableBadges = ["BASE", "PRO", "VIP", "7DAY", "30DAY", "60DAY", "120DAY", "210DAY", "1YR", "LEARNED100", "LEARNED500", "LEARNED1000"]
+    
     private func ensureAccountId() {
         if profileAccountId.isEmpty {
             profileAccountId = UUID().uuidString.replacingOccurrences(of: "-", with: "")
         }
     }
-
+    
     private func ensureFeaturedBadge() {
-        if profileFeaturedBadge.isEmpty && profileBadgesRaw.isEmpty {
-            profileFeaturedBadge = "Base"
+        if profileFeaturedBadge.isEmpty {
+            profileFeaturedBadge = "BASE"
         }
+    }
+    private func ensureStreakBadges() {
+        var set = Set(badges)
+        for b in unlockedStreakBadges { set.insert(b) }
+        setBadges(Array(set))
+    }
+    private var unlockedLearnedBadges: [String] {
+        var res: [String] = []
+        if store.learnedWordsTotal >= 100 { res.append("LEARNED100") }
+        if store.learnedWordsTotal >= 500 { res.append("LEARNED500") }
+        if store.learnedWordsTotal >= 1000 { res.append("LEARNED1000") }
+        return res
+    }
+    private func ensureLearnedBadges() {
+        var set = Set(badges)
+        for b in unlockedLearnedBadges { set.insert(b) }
+        setBadges(Array(set))
+    }
+    private func isUnlockedBadge(_ name: String) -> Bool {
+        return true
+    }
+    private var progressCountsMap: [String:Int] {
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: "progressDayCounts"),
+           let decoded = try? JSONDecoder().decode([String:Int].self, from: data) {
+            return decoded
+        }
+        return [:]
+    }
+    private var calendarStartDate: Date {
+        Calendar.current.date(byAdding: .day, value: -365, to: Date()) ?? Date()
     }
 
     private func resolvedImageURL(from raw: String) -> URL? {
@@ -2914,266 +3187,355 @@ struct ProfileView: View {
 #endif
     }
 
+    @State private var showingSettingsSheet = false
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    ZStack(alignment: .bottomLeading) {
-                        GeometryReader { geometry in
-                            ZStack {
-                                #if os(iOS)
-                                if !profileBackgroundData.isEmpty, let ui = UIImage(data: profileBackgroundData) {
-                                    Image(uiImage: ui).resizable().scaledToFill()
-                                } else if let url = resolvedImageURL(from: profileBackgroundURL), !profileBackgroundURL.isEmpty {
-                                    AsyncImage(url: url) { phase in
-                                        if let image = phase.image { image.resizable().scaledToFill() } else { Color.secondary.opacity(0.2) }
-                                    }
-                                } else { Color.secondary.opacity(0.2) }
-                                #else
-                                if let url = resolvedImageURL(from: profileBackgroundURL), !profileBackgroundURL.isEmpty {
-                                    AsyncImage(url: url) { phase in
-                                        if let image = phase.image { image.resizable().scaledToFill() } else { Color.secondary.opacity(0.2) }
-                                    }
-                                } else { Color.secondary.opacity(0.2) }
-                                #endif
-                                
-                                if editing {
-                                    Color.black.opacity(0.3)
-                                    Image(systemName: "camera.fill")
-                                        .font(.largeTitle)
-                                        .foregroundStyle(.white)
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture { showBgPicker = true }
-                                }
-                            }
-                            .frame(width: geometry.size.width, height: geometry.size.height)
-                            .clipped()
-                        }
-                        .frame(height: 220)
-                        .mask(LinearGradient(stops: [
-                            .init(color: .clear, location: 0),
-                            .init(color: .black, location: 0.15),
-                            .init(color: .black, location: 0.85),
-                            .init(color: .clear, location: 1.0)
-                        ], startPoint: .top, endPoint: .bottom))
+            profileContent
+        }
+        .sheet(isPresented: $showingSettingsSheet) {
+            settingsView
+        }
+    }
+    
+    private var profileContent: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                profileHeader
+                
+                VStack(spacing: 4) {
+                    if editing {
+                        TextField("Имя", text: $profileName)
+                            .textFieldStyle(.roundedBorder)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 280)
+                    } else {
+                        Text(profileName)
+                            .font(.title2.bold())
                     }
-                    .frame(height: 220)
+                    
+                    if editing {
+                        TextField("Bio", text: $profileBio)
+                            .textFieldStyle(.roundedBorder)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 280)
+                    } else if !profileBio.isEmpty {
+                        Text(profileBio)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                }
+                .padding(.top, 16)
+                .padding(.horizontal)
+                    
+                if editing {
+                    badgeSelector
+                }
 
-                    // Avatar centered on the bottom border
+                VStack(alignment: .leading, spacing: 8) {
+                    GeometryReader { geo in
+                        let width = geo.size.width
+                        // 53 недели. Вычислим размер ячейки
+                        // width = 53 * size + 52 * spacing
+                        // size = (width - 52 * spacing) / 53
+                        let spacing: CGFloat = 2
+                        let size = max((width - 52 * spacing) / 53, 4)
+                        
+                        YearProgressGrid(counts: progressCountsMap,
+                                         startDate: calendarStartDate,
+                                         weeks: 53,
+                                         daySize: size,
+                                         spacing: spacing,
+                                         color: AppColors.sessionBlue)
+                    }
+                    .frame(height: 80) // Примерная высота: 7 строк * size + spacing... пусть будет фикс
+                    
+                    HStack {
+                        Text("График активности")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("\(streakCount) дней стрик")
+                            .font(.caption.bold())
+                            .foregroundStyle(.primary)
+                    }
+                }
+                .padding(.top, 16)
+                .padding(.horizontal)
+                
+                Spacer().frame(height: 40)
+            }
+        }
+        .navigationTitle("")
+        .toolbarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showingSettingsSheet = true
+                } label: {
+                    Image(systemName: "gearshape")
+                        .foregroundStyle(.primary)
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    withAnimation { editing.toggle() }
+                } label: {
+                    Image(systemName: editing ? "checkmark" : "pencil")
+                        .foregroundStyle(.primary)
+                }
+            }
+        }
+        .ignoresSafeArea(edges: .top)
+        .onAppear {
+            ensureAccountId()
+            ensureFeaturedBadge()
+            ensureStreakBadges()
+            ensureLearnedBadges()
+        }
+        .onChange(of: store.wordRepeatLimit) { store.pruneReachedLimit() }
+        .onChange(of: store.verbRepeatLimit) { store.pruneReachedLimit() }
+        .onChange(of: store.questionRepeatLimit) { store.pruneReachedLimit() }
+        .overlay(alignment: .bottom) {
+            if showCopiedToast {
+                Toast(text: "ID скопирован")
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .photosPicker(isPresented: $showAvatarPicker, selection: $avatarPickerItem, matching: .images)
+        .photosPicker(isPresented: $showBgPicker, selection: $bgPickerItem, matching: .images)
+        .sheet(isPresented: $showMediaSheet) { EditProfileMediaSheet(backgroundURL: $profileBackgroundURL, avatarURL: $profileAvatarURL) }
+        .sheet(item: $exportShareItem) { item in ShareSheet(items: [item.url]) }
+        .fileImporter(isPresented: $showingImportSheet, allowedContentTypes: [.json, .plainText], allowsMultipleSelection: false) { result in handleImport(result: result) }
+        .alert("Импорт", isPresented: $showingAlert) { Button("OK") { } } message: { Text(alertMessage) }
+        .onChange(of: bgPickerItem) { _, newItem in
+            #if os(iOS)
+            guard let item = newItem else { return }
+            Task { if let data = try? await item.loadTransferable(type: Data.self) { profileBackgroundData = data } }
+            #endif
+        }
+        .onChange(of: avatarPickerItem) { _, newItem in
+            #if os(iOS)
+            guard let item = newItem else { return }
+            Task { if let data = try? await item.loadTransferable(type: Data.self) { profileAvatarData = data } }
+            #endif
+        }
+    }
+    
+    private var profileHeader: some View {
+        Group {
+            ZStack(alignment: .bottomLeading) {
+                GeometryReader { geometry in
                     ZStack {
                         #if os(iOS)
-                        if !profileAvatarData.isEmpty, let ui = UIImage(data: profileAvatarData) {
+                        if !profileBackgroundData.isEmpty, let ui = UIImage(data: profileBackgroundData) {
                             Image(uiImage: ui).resizable().scaledToFill()
-                        } else if let url = resolvedImageURL(from: profileAvatarURL), !profileAvatarURL.isEmpty {
+                        } else if let url = resolvedImageURL(from: profileBackgroundURL), !profileBackgroundURL.isEmpty {
                             AsyncImage(url: url) { phase in
-                                if let image = phase.image { image.resizable().scaledToFill() } else { Circle().fill(Color.secondary.opacity(0.15)) }
+                                if let image = phase.image { image.resizable().scaledToFill() } else { Color.secondary.opacity(0.2) }
                             }
-                        } else { Circle().fill(Color.secondary.opacity(0.15)) }
+                        } else { Color.secondary.opacity(0.2) }
                         #else
-                        if let url = resolvedImageURL(from: profileAvatarURL), !profileAvatarURL.isEmpty {
+                        if let url = resolvedImageURL(from: profileBackgroundURL), !profileBackgroundURL.isEmpty {
                             AsyncImage(url: url) { phase in
-                                if let image = phase.image { image.resizable().scaledToFill() } else { Circle().fill(Color.secondary.opacity(0.15)) }
+                                if let image = phase.image { image.resizable().scaledToFill() } else { Color.secondary.opacity(0.2) }
                             }
-                        } else { Circle().fill(Color.secondary.opacity(0.15)) }
+                        } else { Color.secondary.opacity(0.2) }
                         #endif
                         
                         if editing {
                             Color.black.opacity(0.3)
                             Image(systemName: "camera.fill")
-                                .font(.title)
+                                .font(.largeTitle)
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .contentShape(Circle())
-                                .onTapGesture { showAvatarPicker = true }
+                                .contentShape(Rectangle())
+                                .onTapGesture { showBgPicker = true }
                         }
                     }
-                    .frame(width: 120, height: 120)
-                    .clipShape(Circle())
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+                }
+                .frame(height: 280)
+            }
+            .frame(height: 280)
+
+            // Avatar centered on the bottom border
+            ZStack(alignment: .top) {
+                ZStack {
                     #if os(iOS)
-                    .overlay(Circle().stroke(Color(uiColor: .systemBackground), lineWidth: 4))
-                    .contextMenu {
-                        Button { showAvatarPicker = true } label: { Label("Изменить фото", systemImage: "person.crop.circle") }
-                        Button { showBgPicker = true } label: { Label("Изменить фон", systemImage: "photo") }
-                    }
+                    if !profileAvatarData.isEmpty, let ui = UIImage(data: profileAvatarData) {
+                        Image(uiImage: ui).resizable().scaledToFill()
+                    } else if let url = resolvedImageURL(from: profileAvatarURL), !profileAvatarURL.isEmpty {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image { image.resizable().scaledToFill() } else { Circle().fill(Color.secondary.opacity(0.15)) }
+                        }
+                    } else { Circle().fill(Color.secondary.opacity(0.15)) }
                     #else
-                    .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 4))
-                    .contextMenu {
-                        Button { showMediaSheet = true } label: { Text("Изменить фото/фон") }
-                    }
+                    if let url = resolvedImageURL(from: profileAvatarURL), !profileAvatarURL.isEmpty {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image { image.resizable().scaledToFill() } else { Circle().fill(Color.secondary.opacity(0.15)) }
+                        }
+                    } else { Circle().fill(Color.secondary.opacity(0.15)) }
                     #endif
-                    .offset(y: -60)
-                    .padding(.bottom, -60)
-                    .frame(maxWidth: .infinity)
-
-                    VStack(spacing: 4) {
-                        if editing {
-                            TextField("Имя", text: $profileName)
-                                .textFieldStyle(.roundedBorder)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: 200)
-                        } else {
-                            Text(profileName)
-                                .font(.title2.bold())
-                                .overlay(
-                                    Group {
-                                        if !profileFeaturedBadge.isEmpty {
-                                            BadgeChip(name: profileFeaturedBadge, selected: true)
-                                                .fixedSize()
-                                                .alignmentGuide(.trailing) { d in d[.leading] - 8 }
-                                        }
-                                    }
-                                    , alignment: .trailing
-                                )
-                        }
-                        
-                        if editing {
-                            TextField("Bio", text: $profileBio)
-                                .textFieldStyle(.roundedBorder)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: 280)
-                        } else if !profileBio.isEmpty {
-                            Text(profileBio)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                        }
-                    }
-                    .padding(.top, 16)
-                    .padding(.horizontal)
-                        
+                    
                     if editing {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Выберите значок").font(.caption).foregroundStyle(.secondary)
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 8) {
-                                        ForEach(availableBadges, id: \.self) { badge in
-                                            Button {
-                                                profileFeaturedBadge = (profileFeaturedBadge == badge) ? "" : badge
-                                            } label: {
-                                                BadgeChip(name: badge, selected: profileFeaturedBadge == badge)
-                                            }
-                                            .buttonStyle(.plain)
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(.horizontal)
-                        }
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Лимиты повторов").font(.subheadline.bold()).padding(.horizontal)
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                                LimitCard(title: "Слова", value: $store.wordRepeatLimit)
-                                LimitCard(title: "Глаголы", value: $store.verbRepeatLimit)
-                                LimitCard(title: "Вопросы", value: $store.questionRepeatLimit)
-                            }
-                            .padding(.horizontal)
-                        }
-                        .padding(.top, 8)
-
-                        VStack(spacing: 12) {
-                            HStack {
-                                Text("Тема").font(.subheadline)
-                                Spacer()
-                                Picker("Тема", selection: $appTheme) {
-                                    Text("Авто").tag("system")
-                                    Text("Светлая").tag("light")
-                                    Text("Тёмная").tag("dark")
-                                }
-                                .pickerStyle(.menu)
-                                .accentColor(.primary)
-                            }
-                            .padding(.horizontal)
-                            .padding(.vertical, 8)
-                            .background(Color.secondary.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .padding(.horizontal)
-
-                            HStack(spacing: 12) {
-                                Button(action: exportWords) {
-                                    HStack {
-                                        Image(systemName: "square.and.arrow.up")
-                                        Text("Экспорт")
-                                    }
-                                    .font(.subheadline)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
-                                    .background(Color.secondary.opacity(0.05))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                }
-                                .buttonStyle(.plain)
-                                
-                                Button { showingImportSheet = true } label: {
-                                    HStack {
-                                        Image(systemName: "square.and.arrow.down")
-                                        Text("Импорт")
-                                    }
-                                    .font(.subheadline)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 8)
-                                    .background(Color.secondary.opacity(0.05))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal)
-                            
-                            Button { showingAbout = true } label: {
-                                Text("О приложении v1.0")
-                                    .font(.caption)
-                                    .foregroundStyle(.primary)
-                            }
-                            .padding(.top, 16)
-                        }
-                        .padding(.bottom, 40)
+                        Color.black.opacity(0.3)
+                        Image(systemName: "camera.fill")
+                            .font(.largeTitle)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Circle())
+                            .onTapGesture { showAvatarPicker = true }
+                    }
                 }
+                .frame(width: 150, height: 150)
+                .clipShape(Circle())
+                .overlay(alignment: .top) {
+                    if !profileFeaturedBadge.isEmpty {
+                        StreakBadgeBanner(title: badgeDisplayName(profileFeaturedBadge), style: badgeStyle(profileFeaturedBadge))
+                            .scaleEffect(0.9)
+                            .fixedSize()
+                            .offset(y: -40)
+                    }
+                }
+                #if os(iOS)
+                .overlay(Circle().stroke(Color(uiColor: .systemBackground), lineWidth: 4))
+                .contextMenu {
+                    Button { showAvatarPicker = true } label: { Label("Изменить фото", systemImage: "person.crop.circle") }
+                    Button { showBgPicker = true } label: { Label("Изменить фон", systemImage: "photo") }
+                }
+                #else
+                .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 4))
+                .contextMenu {
+                    Button { showMediaSheet = true } label: { Text("Изменить фото/фон") }
+                }
+                #endif
             }
-            .navigationTitle("")
-            .toolbarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+            .offset(y: -75)
+            .padding(.bottom, -75)
+            .frame(maxWidth: .infinity)
+        }
+    }
+    
+    private var badgeSelector: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Выберите значок")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(availableBadges, id: \.self) { badge in
+                        let selected = (profileFeaturedBadge == badge)
+                        let style = badgeStyle(badge)
+                        
+                        HStack(spacing: 4) {
+                            if !style.iconName.isEmpty {
+                                Image(systemName: style.iconName).font(.caption2)
+                            }
+                            Text(badgeDisplayName(badge))
+                                .font(.caption.bold())
+                        }
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            AnimatedBadgeBackground(style: style)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .strokeBorder(selected ? Color.primary : style.borderColor, lineWidth: selected ? 2 : 1)
+                                )
+                        )
+                        .scaleEffect(selected ? 1.05 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: selected)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            profileFeaturedBadge = (profileFeaturedBadge == badge) ? "" : badge
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private var settingsView: some View {
+        NavigationStack {
+            List {
+                Section(header: Text("Лимиты повторов")) {
+                    HStack {
+                        Text("Слова")
+                        Spacer()
+                        Stepper("", value: $store.wordRepeatLimit, in: 1...100)
+                        Text("\(store.wordRepeatLimit)")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Глаголы")
+                        Spacer()
+                        Stepper("", value: $store.verbRepeatLimit, in: 1...100)
+                        Text("\(store.verbRepeatLimit)")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("Вопросы")
+                        Spacer()
+                        Stepper("", value: $store.questionRepeatLimit, in: 1...100)
+                        Text("\(store.questionRepeatLimit)")
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Section(header: Text("Внешний вид")) {
+                    Picker("Тема", selection: $appTheme) {
+                        Text("Авто").tag("system")
+                        Text("Светлая").tag("light")
+                        Text("Тёмная").tag("dark")
+                    }
+                }
+                
+                Section(header: Text("Данные")) {
                     Button {
-                        withAnimation { editing.toggle() }
+                        exportWords()
                     } label: {
-                        Image(systemName: editing ? "checkmark" : "pencil")
+                        Label("Экспорт", systemImage: "square.and.arrow.up")
+                    }
+                    Button {
+                        showingImportSheet = true
+                    } label: {
+                        Label("Импорт", systemImage: "square.and.arrow.down")
+                    }
+                }
+                
+                Section {
+                    Button {
+                        showingAbout = true
+                    } label: {
+                        Text("О приложении v1.0")
+                            .foregroundStyle(.primary)
                     }
                 }
             }
-            .ignoresSafeArea(edges: .top)
-            .onAppear {
-                ensureAccountId()
-                ensureFeaturedBadge()
-            }
-            .onChange(of: store.wordRepeatLimit) { store.pruneReachedLimit() }
-            .onChange(of: store.verbRepeatLimit) { store.pruneReachedLimit() }
-            .onChange(of: store.questionRepeatLimit) { store.pruneReachedLimit() }
-            .overlay(alignment: .bottom) {
-                if showCopiedToast {
-                    Toast(text: "ID скопирован")
-                        .padding(.bottom, 24)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+            .navigationTitle("Настройки")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Готово") {
+                        showingSettingsSheet = false
+                    }
                 }
             }
-            .sheet(isPresented: $showingAbout) { AboutView() }
-            .photosPicker(isPresented: $showAvatarPicker, selection: $avatarPickerItem, matching: .images)
-            .photosPicker(isPresented: $showBgPicker, selection: $bgPickerItem, matching: .images)
-            .sheet(isPresented: $showMediaSheet) { EditProfileMediaSheet(backgroundURL: $profileBackgroundURL, avatarURL: $profileAvatarURL) }
-            .sheet(item: $exportShareItem) { item in ShareSheet(items: [item.url]) }
-            .fileImporter(isPresented: $showingImportSheet, allowedContentTypes: [.json, .plainText], allowsMultipleSelection: false) { result in handleImport(result: result) }
-            .alert("Импорт", isPresented: $showingAlert) { Button("OK") { } } message: { Text(alertMessage) }
-            .onChange(of: bgPickerItem) { _, newItem in
-                #if os(iOS)
-                guard let item = newItem else { return }
-                Task { if let data = try? await item.loadTransferable(type: Data.self) { profileBackgroundData = data } }
-                #endif
-            }
-            .onChange(of: avatarPickerItem) { _, newItem in
-                #if os(iOS)
-                guard let item = newItem else { return }
-                Task { if let data = try? await item.loadTransferable(type: Data.self) { profileAvatarData = data } }
-                #endif
+            .sheet(isPresented: $showingAbout) {
+                AboutView()
             }
         }
     }
