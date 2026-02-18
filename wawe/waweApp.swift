@@ -1,5 +1,5 @@
 //
-//  waweApp.swift
+//  WaweApp.swift
 //  wawe
 //
 //  Created by burningmannn on 02.12.2025.
@@ -8,10 +8,12 @@
 import SwiftUI
 
 @main
-struct waweApp: App {
+struct WaweApp: App {
+    @StateObject private var container = AppContainer()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(container: container)
         }
     }
 }

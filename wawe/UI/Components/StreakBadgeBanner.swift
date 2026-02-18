@@ -68,24 +68,13 @@ enum BadgeStyle {
     case learned(count: Int)
     
     var isAnimated: Bool {
-        switch self {
-        case .base:
-            return false
-        case .streak(let d) where d < 30:
-            return false
-        case .learned(let c) where c < 500:
-            return false
-        case .year:
-            return false
-        default:
-            return true
-        }
+        return true
     }
     
     var chromaticColors: [Color] {
         switch self {
         case .base:
-            return [Color(white: 0.95)]
+            return [Color(white: 0.95), Color(white: 0.85), Color(white: 0.9)]
         case .pro:
             return [Color.hex("#30D158"), Color.hex("#20A040"), Color.hex("#88E0A0")]
         case .vip:
@@ -94,20 +83,20 @@ enum BadgeStyle {
             if d >= 120 { return [Color.hex("#FF2D55"), Color.hex("#FF375F"), Color.hex("#FF9F0A")] }
             if d >= 60 { return [Color.hex("#FF9500"), Color.hex("#FF3B30"), Color.hex("#FFCC00")] }
             if d >= 30 { return [Color.hex("#FFCC00"), Color.hex("#FF9500"), Color.hex("#FFD60A")] }
-            if d >= 7 { return [Color.hex("#5E5CE6")] }
-            return [Color.hex("#32ADE6")]
+            if d >= 7 { return [Color.hex("#5E5CE6"), Color.hex("#5856D6"), Color.hex("#AF52DE")] }
+            return [Color.hex("#32ADE6"), Color.hex("#007AFF"), Color.hex("#5AC8FA")]
         case .year:
-            return [Color.hex("#E0E0E0")]
+            return [Color.hex("#E0E0E0"), Color.hex("#C0C0C0"), Color.hex("#D0D0D0")]
         case .learned(let c):
             if c >= 500 { return [Color.hex("#64D2FF"), Color.hex("#007AFF"), Color.hex("#5AC8FA")] }
-            return [Color.hex("#64D2FF")]
+            return [Color.hex("#64D2FF"), Color.hex("#5AC8FA"), Color.hex("#007AFF")]
         }
     }
     
     var gradient: LinearGradient {
         switch self {
         case .base:
-            return LinearGradient(colors: [Color(white: 0.9)], startPoint: .top, endPoint: .bottom)
+            return LinearGradient(colors: [Color(white: 0.95), Color(white: 0.85)], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .pro:
             return LinearGradient(colors: [Color.hex("#30D158"), Color.hex("#20A040")], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .vip:
@@ -116,13 +105,13 @@ enum BadgeStyle {
             if d >= 120 { return LinearGradient(colors: [Color.hex("#FF2D55"), Color.hex("#FF375F")], startPoint: .leading, endPoint: .trailing) }
             if d >= 60 { return LinearGradient(colors: [Color.hex("#FF9500"), Color.hex("#FF3B30")], startPoint: .leading, endPoint: .trailing) }
             if d >= 30 { return LinearGradient(colors: [Color.hex("#FFCC00"), Color.hex("#FF9500")], startPoint: .leading, endPoint: .trailing) }
-            if d >= 7 { return LinearGradient(colors: [Color.hex("#5E5CE6")], startPoint: .leading, endPoint: .trailing) }
-            return LinearGradient(colors: [Color.hex("#32ADE6")], startPoint: .leading, endPoint: .trailing)
+            if d >= 7 { return LinearGradient(colors: [Color.hex("#5E5CE6"), Color.hex("#AF52DE")], startPoint: .leading, endPoint: .trailing) }
+            return LinearGradient(colors: [Color.hex("#32ADE6"), Color.hex("#007AFF")], startPoint: .leading, endPoint: .trailing)
         case .year:
-            return LinearGradient(colors: [Color.hex("#E0E0E0")], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [Color.hex("#E0E0E0"), Color.hex("#A0A0A0")], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .learned(let c):
             if c >= 500 { return LinearGradient(colors: [Color.hex("#64D2FF"), Color.hex("#007AFF")], startPoint: .top, endPoint: .bottom) }
-            return LinearGradient(colors: [Color.hex("#64D2FF")], startPoint: .top, endPoint: .bottom)
+            return LinearGradient(colors: [Color.hex("#64D2FF"), Color.hex("#007AFF")], startPoint: .top, endPoint: .bottom)
         }
     }
     

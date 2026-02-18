@@ -1,9 +1,10 @@
 import SwiftUI
 
-struct NoteDropDelegate: DropDelegate {
+struct NoteDropHandler: DropDelegate {
     let destinationItem: ImageNote
-    @Binding var notes: [ImageNote]
+    let notes: [ImageNote]
     @Binding var draggedItem: ImageNote?
+    let onMove: (IndexSet, Int) -> Void
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
         return DropProposal(operation: .move)
@@ -21,8 +22,8 @@ struct NoteDropDelegate: DropDelegate {
 
         if fromIndex != toIndex {
             withAnimation {
-                notes.move(fromOffsets: IndexSet(integer: fromIndex),
-                           toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
+                onMove(IndexSet(integer: fromIndex),
+                       toIndex > fromIndex ? toIndex + 1 : toIndex)
             }
         }
     }
