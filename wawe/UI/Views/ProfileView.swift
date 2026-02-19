@@ -90,7 +90,6 @@ struct ProfileView: View {
                             } label: {
                                 Image(systemName: "arrow.up.arrow.down")
                             }
-                            .menuIndicator(.hidden)
                         }
                     }
 #else
@@ -111,7 +110,6 @@ struct ProfileView: View {
                             } label: {
                                 Image(systemName: "arrow.up.arrow.down")
                             }
-                            .menuIndicator(.hidden)
                         }
                     }
 #endif
@@ -286,15 +284,15 @@ struct ProfileView: View {
                         Image(uiImage: ui).resizable().scaledToFill()
                     } else if let url = viewModel.resolvedImageURL(from: viewModel.profileAvatarURL), !viewModel.profileAvatarURL.isEmpty {
                         AsyncImage(url: url) { phase in
-                            if let image = phase.image { image.resizable().scaledToFill() } else { Circle().fill(Color.primary) }
+                            if let image = phase.image { image.resizable().scaledToFill() } else { Circle().fill(Color.gray) }
                         }
-                    } else { Circle().fill(Color.primary) }
+                    } else { Circle().fill(Color.gray) }
 #else
                     if let url = viewModel.resolvedImageURL(from: viewModel.profileAvatarURL), !viewModel.profileAvatarURL.isEmpty {
                         AsyncImage(url: url) { phase in
-                            if let image = phase.image { image.resizable().scaledToFill() } else { Circle().fill(Color.primary) }
+                            if let image = phase.image { image.resizable().scaledToFill() } else { Circle().fill(Color.gray) }
                         }
-                    } else { Circle().fill(Color.primary) }
+                    } else { Circle().fill(Color.gray) }
 #endif
                     
                     if viewModel.editing {
