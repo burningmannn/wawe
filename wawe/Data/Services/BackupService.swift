@@ -5,16 +5,13 @@ struct BackupSettings: Codable {
     var wordRepeatLimit: Int
     var verbRepeatLimit: Int
     var questionRepeatLimit: Int
-    var profileBadges: String?
 
     init(wordRepeatLimit: Int = 30,
          verbRepeatLimit: Int = 30,
-         questionRepeatLimit: Int = 30,
-         profileBadges: String? = nil) {
+         questionRepeatLimit: Int = 30) {
         self.wordRepeatLimit = wordRepeatLimit
         self.verbRepeatLimit = verbRepeatLimit
         self.questionRepeatLimit = questionRepeatLimit
-        self.profileBadges = profileBadges
     }
 }
 

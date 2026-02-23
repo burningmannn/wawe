@@ -455,8 +455,6 @@ class WordStore: ObservableObject {
     // MARK: - Экспорт/Импорт
     func exportBackup() -> URL? {
         print("Starting export for all sections")
-        
-        let profileBadges = UserDefaults.standard.string(forKey: "profileBadges")
 
         let payload = BackupPayload(
             words: words,
@@ -467,8 +465,7 @@ class WordStore: ObservableObject {
             settings: BackupSettings(
                 wordRepeatLimit: wordRepeatLimit,
                 verbRepeatLimit: verbRepeatLimit,
-                questionRepeatLimit: questionRepeatLimit,
-                profileBadges: profileBadges
+                questionRepeatLimit: questionRepeatLimit
             ),
             version: "2.1",
             exportDate: Date()
@@ -518,7 +515,7 @@ class WordStore: ObservableObject {
     // MARK: - Apply Methods
 
     private func apply(payload: BackupPayload) -> Bool {
-        print("Applying BackupPayload with \(payload.words.count) words, \(payload.irregularVerbs.count) verbs, \(payload.questions.count) questions")
+        print("Applying BackupPayload with \(payload.words.count) words, \(payload.irregularVerbs.count) verbs, \(payload.questions.count) questions, \(payload.imageNotes.count) imageNotes, \(payload.notesTables.count) notesTables")
 
         let importedWords = mergeWords(payload.words)
         let importedVerbs = mergeVerbs(payload.irregularVerbs)
@@ -527,27 +524,18 @@ class WordStore: ObservableObject {
         let importedNotesTables = mergeNotesTables(payload.notesTables)
 
         let settings = payload.settings
-        let settingsChanged =
-            settings.wordRepeatLimit != wordRepeatLimit ||
-            settings.verbRepeatLimit != verbRepeatLimit ||
-            settings.questionRepeatLimit != questionRepeatLimit
-
         wordRepeatLimit = settings.wordRepeatLimit
         verbRepeatLimit = settings.verbRepeatLimit
         questionRepeatLimit = settings.questionRepeatLimit
-        
-        if let badges = settings.profileBadges {
-            UserDefaults.standard.set(badges, forKey: "profileBadges")
-            print("Imported profileBadges: \(badges)")
-        }
 
         removeCompletedWords(countAsLearned: false)
         removeCompletedVerbs(countAsLearned: false)
         removeCompletedQuestions(countAsLearned: false)
 
-        print("Payload import summary: +\(importedWords) words, +\(importedVerbs) verbs, +\(importedQuestions) questions, +\(importedImageNotes) imageNotes, +\(importedNotesTables) legacyNotesTables, settingsChanged: \(settingsChanged)")
+        print("Payload import summary: +\(importedWords) words, +\(importedVerbs) verbs, +\(importedQuestions) questions, +\(importedImageNotes) imageNotes, +\(importedNotesTables) notesTables")
 
-        return (importedWords + importedVerbs + importedQuestions + importedImageNotes + importedNotesTables) > 0 || settingsChanged
+        // Payload was valid — import is always considered successful
+        return true
     }
 
     private func apply(exportData: ExportDataV1) -> Bool {

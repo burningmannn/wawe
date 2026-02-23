@@ -46,9 +46,16 @@ class ImageLoader: ObservableObject {
     func load(url: URL) {
         isLoading = true
         error = nil
-        
+
+        // Upgrade http → https to satisfy ATS on iOS/macOS
+        var finalURL = url
+        if url.scheme == "http", var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            comps.scheme = "https"
+            finalURL = comps.url ?? url
+        }
+
         // Try disk cache first
-        let cached = cachedFileURL(for: url)
+        let cached = cachedFileURL(for: finalURL)
         if fileManager.fileExists(atPath: cached.path) {
             if let data = try? Data(contentsOf: cached),
                let img = decodeImageData(data) {
@@ -59,30 +66,38 @@ class ImageLoader: ObservableObject {
                 try? fileManager.removeItem(at: cached)
             }
         }
-         
+
         let config = URLSessionConfiguration.default
         config.httpAdditionalHeaders = [
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
-            "Accept": "image/*,*/*;q=0.8"
+            "Accept": "image/*,*/*;q=0.8",
+            "Referer": "\(finalURL.scheme ?? "https")://\(finalURL.host ?? "")"
         ]
+        config.timeoutIntervalForRequest = 20
+        config.timeoutIntervalForResource = 30
         let session = URLSession(configuration: config)
-         
-        var request = URLRequest(url: url)
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-         
+
+        var request = URLRequest(url: finalURL, timeoutInterval: 20)
+        request.cachePolicy = .returnCacheDataElseLoad
+
         cancellable = session.dataTaskPublisher(for: request)
-            .tryMap { (data, response) -> Data in data }
+            .tryMap { (data, response) -> Data in
+                guard let http = response as? HTTPURLResponse, http.statusCode < 400 else {
+                    throw URLError(.badServerResponse)
+                }
+                return data
+            }
             .receive(on: DispatchQueue.main)
             .sink(receiveCompletion: { [weak self] completion in
                 self?.isLoading = false
-                if case .failure(let error) = completion {
-                    self?.error = error
+                if case .failure(let err) = completion {
+                    self?.error = err
                 }
             }, receiveValue: { [weak self] data in
                 guard let self else { return }
                 if let img = self.decodeImageData(data) {
                     // Save to disk cache
-                    let cached = self.cachedFileURL(for: url)
+                    let cached = self.cachedFileURL(for: finalURL)
                     try? data.write(to: cached, options: .atomic)
                     self.publish(image: img)
                 } else {
@@ -138,18 +153,9 @@ struct RemoteImage: View {
             } else {
                 ZStack {
                     Rectangle().fill(Color.secondary.opacity(0.1))
-                    VStack {
-                        Image(systemName: "photo")
-                            .font(.largeTitle)
-                            .foregroundStyle(.secondary)
-                        if let error = loader.error {
-                            Text(error.localizedDescription)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 4)
-                        }
-                    }
+                    Image(systemName: loader.error != nil ? "photo.badge.exclamationmark" : "photo")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .aspectRatio(16.0/9.0, contentMode: .fit)

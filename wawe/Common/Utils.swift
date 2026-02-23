@@ -20,14 +20,25 @@ extension String {
 
     var normalizedURL: URL? {
         var s = self.trimmed
+        guard !s.isEmpty else { return nil }
+
+        // Fix protocol-relative URLs
         if s.hasPrefix("//") {
             s = "https:" + s
-        } else if !s.lowercased().hasPrefix("http://") && !s.lowercased().hasPrefix("https://") {
+        } else if s.lowercased().hasPrefix("http://") {
+            // Upgrade http → https to satisfy ATS
+            s = "https://" + s.dropFirst("http://".count)
+        } else if !s.lowercased().hasPrefix("https://") {
             s = "https://" + s
         }
-        if let url = URL(string: s) { return url }
-        if let encoded = s.addingPercentEncoding(withAllowedCharacters: .urlFragmentAllowed),
-           let url = URL(string: encoded) {
+
+        // Try to create URL directly
+        if let url = URL(string: s), let host = url.host, !host.isEmpty {
+            return url
+        }
+        // Try with percent-encoding (handles spaces and special chars in path/query)
+        if let encoded = s.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let url = URL(string: encoded), let host = url.host, !host.isEmpty {
             return url
         }
         return nil
