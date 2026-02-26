@@ -21,6 +21,7 @@ struct BackupPayload: Codable {
     var questions: [QuestionItem]
     var imageNotes: [ImageNote]
     var notesTables: [FlexNoteTable]
+    var testItems: [TestItem]
     var settings: BackupSettings
     var version: String
     var exportDate: Date
@@ -30,6 +31,7 @@ struct BackupPayload: Codable {
          questions: [QuestionItem],
          imageNotes: [ImageNote],
          notesTables: [FlexNoteTable],
+         testItems: [TestItem] = [],
          settings: BackupSettings,
          version: String,
          exportDate: Date) {
@@ -38,6 +40,7 @@ struct BackupPayload: Codable {
         self.questions = questions
         self.imageNotes = imageNotes
         self.notesTables = notesTables
+        self.testItems = testItems
         self.settings = settings
         self.version = version
         self.exportDate = exportDate
@@ -50,6 +53,7 @@ struct BackupPayload: Codable {
         questions = (try? container.decode([QuestionItem].self, forKey: .questions)) ?? []
         imageNotes = (try? container.decode([ImageNote].self, forKey: .imageNotes)) ?? []
         notesTables = (try? container.decode([FlexNoteTable].self, forKey: .notesTables)) ?? []
+        testItems = (try? container.decode([TestItem].self, forKey: .testItems)) ?? []
         settings = try container.decodeIfPresent(BackupSettings.self, forKey: .settings) ?? BackupSettings()
         version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.0"
         exportDate = try container.decodeIfPresent(Date.self, forKey: .exportDate) ?? Date()

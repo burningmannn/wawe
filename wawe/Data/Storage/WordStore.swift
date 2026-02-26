@@ -31,6 +31,10 @@ class WordStore: ObservableObject {
         didSet { saveNotes() }
     }
 
+    @Published var testItems: [TestItem] = [] {
+        didSet { saveTestItems() }
+    }
+
     init() {
         load()
         migrateLegacyRepeatLimit()
@@ -53,6 +57,70 @@ class WordStore: ObservableObject {
     
     func removeImageNote(_ note: ImageNote) {
         imageNotes.removeAll { $0.id == note.id }
+    }
+
+    // MARK: - TestItems CRUD
+    func addTestItem(title: String, type: TestItem.TestType, rawContent: String) {
+        testItems.append(TestItem(title: title, type: type, rawContent: rawContent))
+    }
+
+    func updateTestItem(_ item: TestItem, title: String, type: TestItem.TestType, rawContent: String) {
+        guard let idx = testItems.firstIndex(where: { $0.id == item.id }) else { return }
+        testItems[idx].title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        testItems[idx].type = type
+        testItems[idx].rawContent = rawContent
+    }
+
+    func removeTestItem(_ item: TestItem) {
+        testItems.removeAll { $0.id == item.id }
+    }
+
+    func clearTestItems() {
+        testItems.removeAll()
+    }
+
+    func addSampleTestItems() {
+        let chooseRaw = """
++ The sky is blue.
+* The sky is green.
+* The sky is red.
++ My dress is beautiful.
+* My dress is beauty.
+* My dress is beautify.
++ The grass is wet.
+* The grass is wetting.
+* The grass is wetly.
++ The car is fast.
+* The car is fastly.
+* The car is fasting.
++ Her shoes are expensive.
+* Her shoes is expensive.
+* Her shoes were expensively.
++ The apple is sweet.
+* The apple is sweetly.
+* The apple is sweeting.
++ His glasses are old.
+* His glasses is old.
+* His glasses are older.
+"""
+        let fillRaw = """
+The weather is *cold* (температура) today, so wear a *warm* (одежда) coat.
+She has *long* (длина) hair and *blue* (цвет) eyes.
+This is a *difficult* (сложность) test, but you are *smart* (способности) enough.
+The room was *dark* (освещение) and *quiet* (звук) at night.
+He is *tall* (рост) and *strong* (физическое состояние) for his age.
+"""
+        let sampleChoose = TestItem(title: "Прилагательные — выбери верное", type: .chooseCorrect, rawContent: chooseRaw)
+        let sampleFill   = TestItem(title: "Прилагательные — заполни пропуски", type: .fillInBlanks, rawContent: fillRaw)
+
+        for sample in [sampleChoose, sampleFill] {
+            let exists = testItems.contains {
+                $0.title.lowercased() == sample.title.lowercased() && $0.type == sample.type
+            }
+            if !exists {
+                testItems.append(sample)
+            }
+        }
     }
 
     // Добавление
@@ -462,12 +530,13 @@ class WordStore: ObservableObject {
             questions: questions,
             imageNotes: imageNotes,
             notesTables: notesTables,
+            testItems: testItems,
             settings: BackupSettings(
                 wordRepeatLimit: wordRepeatLimit,
                 verbRepeatLimit: verbRepeatLimit,
                 questionRepeatLimit: questionRepeatLimit
             ),
-            version: "2.1",
+            version: "2.2",
             exportDate: Date()
         )
 
@@ -522,6 +591,7 @@ class WordStore: ObservableObject {
         let importedQuestions = mergeQuestions(payload.questions)
         let importedImageNotes = mergeImageNotes(payload.imageNotes)
         let importedNotesTables = mergeNotesTables(payload.notesTables)
+        let importedTestItems = mergeTestItems(payload.testItems)
 
         let settings = payload.settings
         wordRepeatLimit = settings.wordRepeatLimit
@@ -532,7 +602,7 @@ class WordStore: ObservableObject {
         removeCompletedVerbs(countAsLearned: false)
         removeCompletedQuestions(countAsLearned: false)
 
-        print("Payload import summary: +\(importedWords) words, +\(importedVerbs) verbs, +\(importedQuestions) questions, +\(importedImageNotes) imageNotes, +\(importedNotesTables) notesTables")
+        print("Payload import summary: +\(importedWords) words, +\(importedVerbs) verbs, +\(importedQuestions) questions, +\(importedImageNotes) imageNotes, +\(importedNotesTables) notesTables, +\(importedTestItems) testItems")
 
         // Payload was valid — import is always considered successful
         return true
@@ -588,6 +658,21 @@ class WordStore: ObservableObject {
             }
             if !exists {
                 imageNotes.append(note)
+                added += 1
+            }
+        }
+        return added
+    }
+
+    private func mergeTestItems(_ imported: [TestItem]) -> Int {
+        var added = 0
+        for item in imported {
+            let exists = testItems.contains {
+                $0.title.normalizedCompareKey == item.title.normalizedCompareKey &&
+                $0.type == item.type
+            }
+            if !exists {
+                testItems.append(item)
                 added += 1
             }
         }
@@ -651,6 +736,10 @@ class WordStore: ObservableObject {
         save(imageNotes, key: "imageNotes")
     }
 
+    private func saveTestItems() {
+        save(testItems, key: "testItems")
+    }
+
     struct LegacyNoteRow: Codable {
         let situation: String
         let usage: String
@@ -687,6 +776,10 @@ class WordStore: ObservableObject {
         
         if let loadedImageNotes = load(key: "imageNotes", type: [ImageNote].self) {
             imageNotes = loadedImageNotes
+        }
+
+        if let loadedTestItems = load(key: "testItems", type: [TestItem].self) {
+            testItems = loadedTestItems
         }
 
         if let data = UserDefaults.standard.data(forKey: "notesTables") {

@@ -46,6 +46,7 @@ struct QuestionTestView: View {
                             viewModel.checkAnswer()
                         }
                         .buttonStyle(.borderedProminent)
+                        .foregroundStyle(.black)
                         .disabled(viewModel.answer.trimmed.isEmpty)
 
                         Button("Пропустить") {

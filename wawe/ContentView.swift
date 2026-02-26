@@ -23,8 +23,11 @@ struct ContentView: View {
         default: return nil
         }
     }
+    // #C8F135 — neon lime green, как на референсе
+    private static let neonAccent = Color(red: 0.784, green: 0.945, blue: 0.208)
+
     private var accentColor: Color {
-        appTheme == "dark" ? .white : .black
+        appTheme == "dark" ? Self.neonAccent : .black
     }
 
     var body: some View {
@@ -44,6 +47,11 @@ struct ContentView: View {
                     Label("Вопросы", systemImage: "questionmark.circle")
                 }
             
+            TestsView(repo: container.testsRepo)
+                .tabItem {
+                    Label("Тесты", systemImage: "pencil.and.list.clipboard")
+                }
+
             NotesView(repo: container.notesRepo)
                 .tabItem {
                     Label("Заметки", systemImage: "note.text")

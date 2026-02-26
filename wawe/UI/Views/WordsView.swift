@@ -373,6 +373,7 @@ struct TestView: View {
                     HStack {
                         Button("Проверить") { viewModel.checkAnswer() }
                             .buttonStyle(.borderedProminent)
+                            .foregroundStyle(.black)
                         Button("Пропустить") { viewModel.nextWord() }
                             .buttonStyle(.bordered)
                     }

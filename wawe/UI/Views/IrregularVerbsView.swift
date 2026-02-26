@@ -428,6 +428,7 @@ struct StepByStepVerbTestView: View {
                     HStack(spacing: 20) {
                         Button("Проверить") { viewModel.checkAnswer() }
                             .buttonStyle(.borderedProminent)
+                            .foregroundStyle(.black)
                             .disabled(viewModel.answer.trimmed.isEmpty)
                         
                         Button("Пропустить") { viewModel.skipStep() }
@@ -509,9 +510,9 @@ struct StepProgressView: View {
     
     func stepColor(for step: Int) -> Color {
         if step < currentStep {
-            return .primary // Завершенные шаги
+            return .blue // Завершенные шаги
         } else if step == currentStep {
-            return .primary // Текущий шаг
+            return .blue // Текущий шаг
         } else {
             return .gray.opacity(0.3) // Будущие шаги
         }
