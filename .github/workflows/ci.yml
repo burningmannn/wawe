@@ -23,5 +23,5 @@ jobs:
           xcodebuild test \
             -project wawe.xcodeproj \
             -scheme wawe \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.2' \
+            -destination 'platform=macOS,arch=arm64' \
             CODE_SIGNING_ALLOWED=NO
