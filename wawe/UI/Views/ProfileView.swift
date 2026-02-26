@@ -71,19 +71,14 @@ struct ProfileView: View {
     }
 
     private var profileContent: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                profileHeader
-                    .padding(.top, 24)
-
-                profileInfoView
-                    .padding(.top, 16)
-                    .padding(.horizontal)
-
-                streakSection
-                    .padding(.top, 32)
-
-                Spacer().frame(height: 48)
+        GeometryReader { proxy in
+            ScrollView {
+                VStack {
+                    Spacer(minLength: 0)
+                    streakSection
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
         }
         .overlay(alignment: .bottom) {
@@ -168,9 +163,6 @@ struct ProfileView: View {
             }
             .frame(width: 150, height: 150)
 
-            Text("стрик")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
         }
     }
 
