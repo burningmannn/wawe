@@ -22,6 +22,9 @@ final class ProfileViewModel: ObservableObject {
     @Published var learnedWordsCount: Int = 0
     @Published var learnedVerbsCount: Int = 0
     @Published var learnedQuestionsCount: Int = 0
+    @Published var totalWordsCount: Int = 0
+    @Published var totalVerbsCount: Int = 0
+    @Published var totalQuestionsCount: Int = 0
     @Published var streakCount: Int = 0
 
     @Published var editing = false
@@ -50,7 +53,8 @@ final class ProfileViewModel: ObservableObject {
     private func bind() {
         wordsRepo.wordsPublisher
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] words in
+                self?.totalWordsCount = words.count
                 self?.updateLearnedCounts()
                 self?.updateStreak()
             }
@@ -58,7 +62,8 @@ final class ProfileViewModel: ObservableObject {
 
         verbsRepo.verbsPublisher
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] verbs in
+                self?.totalVerbsCount = verbs.count
                 self?.updateLearnedCounts()
                 self?.updateStreak()
             }
@@ -66,7 +71,8 @@ final class ProfileViewModel: ObservableObject {
 
         questionsRepo.questionsPublisher
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] questions in
+                self?.totalQuestionsCount = questions.count
                 self?.updateLearnedCounts()
                 self?.updateStreak()
             }

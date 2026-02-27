@@ -19,7 +19,6 @@ struct QuestionsView: View {
     var filteredQuestions: [QuestionItem] { viewModel.state.filtered }
 
     var body: some View {
-        NavigationStack {
             Group {
                 if filteredQuestions.isEmpty {
                     if viewModel.state.all.isEmpty {
@@ -29,13 +28,6 @@ struct QuestionsView: View {
                     }
                 } else {
                     List {
-                        Section("Статистика") {
-                            StatisticRow(title: "Всего вопросов", systemImage: "number.square", value: viewModel.state.all.count)
-                            if filteredQuestions.count != viewModel.state.all.count {
-                                StatisticRow(title: "В подборке", systemImage: "line.3.horizontal.decrease.circle", value: filteredQuestions.count)
-                            }
-                        }
-
                         ForEach(filteredQuestions) { question in
                             NavigationLink {
                                 EditQuestionView(question: question,
@@ -64,6 +56,7 @@ struct QuestionsView: View {
                     }
 #if os(iOS)
                     .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
 #else
                     .listStyle(.automatic)
 #endif
@@ -74,7 +67,7 @@ struct QuestionsView: View {
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    ToolbarSearchField(text: $search, prompt: "Поиск")
+                    ToolbarSearchField(text: $search, prompt: "Поиск", count: viewModel.state.all.count)
                 }
 #if os(iOS)
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -151,7 +144,6 @@ struct QuestionsView: View {
             } message: {
                 Text("Действие нельзя отменить. Все вопросы будут удалены.")
             }
-        }
     }
 }
 

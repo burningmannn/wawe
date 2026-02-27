@@ -76,9 +76,17 @@ extension TestItem {
                 }
                 let text = String(t.dropFirst()).trimmingCharacters(in: .whitespaces)
                 if !text.isEmpty { currentCorrect = ChoiceItem(text: text, isCorrect: true) }
-            } else if t.hasPrefix("*") {
+            } else if t.hasPrefix("*") || (t.hasPrefix("-") && t.count > 1) {
+                // Both "*" and "-text" mark wrong options; standalone "-" or "---" acts as group separator
                 let text = String(t.dropFirst()).trimmingCharacters(in: .whitespaces)
                 if !text.isEmpty { currentIncorrect.append(ChoiceItem(text: text, isCorrect: false)) }
+            } else if t == "-" || t.allSatisfy({ $0 == "-" }) {
+                // Standalone dashes (-, --, ---) act as explicit group separator
+                if let correct = currentCorrect {
+                    groups.append(ChoiceGroup(items: [correct] + currentIncorrect))
+                    currentCorrect = nil
+                    currentIncorrect = []
+                }
             } else if instruction.isEmpty {
                 instruction = t
             }

@@ -10,6 +10,7 @@ struct IrregularVerbsView: View {
     @State private var showingTest = false
     @State private var showingClearAlert = false
     @State private var search = ""
+    @Environment(\.colorScheme) private var colorScheme
     
     init(repo: IrregularVerbsRepository) {
         self.repo = repo
@@ -19,7 +20,6 @@ struct IrregularVerbsView: View {
     var filteredVerbs: [IrregularVerb] { viewModel.state.filtered }
 
     var body: some View {
-        NavigationStack {
             Group {
                 if filteredVerbs.isEmpty {
                     if viewModel.state.all.isEmpty {
@@ -29,13 +29,6 @@ struct IrregularVerbsView: View {
                     }
                 } else {
                     List {
-                        Section("Статистика") {
-                            StatisticRow(title: "Всего глаголов", systemImage: "number.square", value: viewModel.state.all.count)
-                            if filteredVerbs.count != viewModel.state.all.count {
-                                StatisticRow(title: "В подборке", systemImage: "line.3.horizontal.decrease.circle", value: filteredVerbs.count)
-                            }
-                        }
-
                         ForEach(filteredVerbs) { verb in
                             NavigationLink {
                                 EditIrregularVerbView(
@@ -67,6 +60,7 @@ struct IrregularVerbsView: View {
                     }
 #if os(iOS)
                     .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
 #else
                     .listStyle(.automatic)
 #endif
@@ -77,7 +71,7 @@ struct IrregularVerbsView: View {
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    ToolbarSearchField(text: $search, prompt: "Поиск")
+                    ToolbarSearchField(text: $search, prompt: "Поиск", count: viewModel.state.all.count)
                 }
 #if os(iOS)
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -154,7 +148,6 @@ struct IrregularVerbsView: View {
             } message: {
                 Text("Действие нельзя отменить. Все глаголы будут удалены.")
             }
-        }
     }
 }
 
@@ -381,6 +374,7 @@ struct EditIrregularVerbView: View {
 // MARK: - Пошаговый тест неправильных глаголов
 struct StepByStepVerbTestView: View {
     @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel: VerbsTestViewModel
     
     init(repo: IrregularVerbsRepository) {
@@ -428,7 +422,7 @@ struct StepByStepVerbTestView: View {
                     HStack(spacing: 20) {
                         Button("Проверить") { viewModel.checkAnswer() }
                             .buttonStyle(.borderedProminent)
-                            .foregroundStyle(.black)
+                            .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
                             .disabled(viewModel.answer.trimmed.isEmpty)
                         
                         Button("Пропустить") { viewModel.skipStep() }

@@ -57,7 +57,6 @@ struct TestsView: View {
     }
 
     var body: some View {
-        NavigationStack {
             Group {
                 if viewModel.state.filtered.isEmpty {
                     if viewModel.state.all.isEmpty {
@@ -75,14 +74,6 @@ struct TestsView: View {
                     }
                 } else {
                     List {
-                        Section("Статистика") {
-                            StatisticRow(
-                                title: "Всего тестов",
-                                systemImage: "number.square",
-                                value: viewModel.state.all.count
-                            )
-                        }
-
                         ForEach(viewModel.state.filtered) { test in
                             NavigationLink {
                                 TestDetailView(
@@ -106,6 +97,7 @@ struct TestsView: View {
                     }
 #if os(iOS)
                     .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
 #else
                     .listStyle(.automatic)
 #endif
@@ -118,7 +110,7 @@ struct TestsView: View {
 #endif
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    ToolbarSearchField(text: $search, prompt: "Поиск тестов")
+                    ToolbarSearchField(text: $search, prompt: "Поиск тестов", count: viewModel.state.all.count)
                 }
 #if os(iOS)
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -130,16 +122,7 @@ struct TestsView: View {
                                 Label("Очистить", systemImage: "trash")
                             }
                         }
-                        Menu {
-                            Button {
-                                viewModel.send(.addSamples)
-                            } label: {
-                                Label("Заполнить примерами", systemImage: "wand.and.stars")
-                            }
-                            Button { showingAdd = true } label: {
-                                Label("Новый тест", systemImage: "plus")
-                            }
-                        } label: {
+                        Button { showingAdd = true } label: {
                             Image(systemName: "plus")
                         }
                     }
@@ -153,16 +136,7 @@ struct TestsView: View {
                             Label("Очистить", systemImage: "trash")
                         }
                     }
-                    Menu {
-                        Button {
-                            viewModel.send(.addSamples)
-                        } label: {
-                            Label("Заполнить примерами", systemImage: "wand.and.stars")
-                        }
-                        Button { showingAdd = true } label: {
-                            Label("Новый тест", systemImage: "plus")
-                        }
-                    } label: {
+                    Button { showingAdd = true } label: {
                         Image(systemName: "plus")
                     }
                 }
@@ -186,7 +160,6 @@ struct TestsView: View {
             } message: {
                 Text("Действие нельзя отменить. Все тесты будут удалены.")
             }
-        }
     }
 }
 

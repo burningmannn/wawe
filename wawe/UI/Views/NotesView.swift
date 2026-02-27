@@ -32,7 +32,6 @@ struct NotesView: View {
     }
     
     var body: some View {
-        NavigationStack {
             List {
                 ForEach(viewModel.state.filtered) { note in
                     NavigationLink {
@@ -68,7 +67,10 @@ struct NotesView: View {
                     viewModel.send(.move(from, to))
                 }
             }
-            .navigationTitle("Заметки")
+            .navigationTitle("")
+#if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -79,72 +81,9 @@ struct NotesView: View {
                     EditButton()
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack {
-                        Menu {
-                            Picker("Сортировка", selection: Binding(
-                                get: { viewModel.state.sortByTitle ? NoteSortOrder.title : NoteSortOrder.date },
-                                set: { viewModel.send(.sortByTitle($0 == .title)) }
-                            )) {
-                                ForEach(NoteSortOrder.allCases) { order in
-                                    Text(order.rawValue).tag(order)
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "arrow.up.arrow.down")
-                        }
-                        
-                        if !viewModel.state.all.isEmpty {
-                            Button(role: .destructive) {
-                                showingClearAlert = true
-                            } label: {
-                                Label("Удалить все", systemImage: "trash")
-                            }
-                        }
-                        
-                        Menu {
-                            Button(action: { showingAddImageNote = true }) {
-                                Label("Создать", systemImage: "plus")
-                            }
-                            Button(action: { viewModel.send(.addRandom) }) {
-                                Label("Случайная заметка", systemImage: "dice")
-                            }
-                            Button(action: { viewModel.send(.addTwoRandom) }) {
-                                Label("Случайные 2", systemImage: "die.face.2")
-                            }
-                            Button(action: { viewModel.send(.addSamples) }) {
-                                Label("Заполнить примерами", systemImage: "photo.on.rectangle")
-                            }
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                    }
-                }
-#else
-                ToolbarItemGroup(placement: .automatic) {
-                    Menu {
-                        Picker("Сортировка", selection: Binding(
-                            get: { viewModel.state.sortByTitle ? NoteSortOrder.title : NoteSortOrder.date },
-                            set: { viewModel.send(.sortByTitle($0 == .title)) }
-                        )) {
-                            ForEach(NoteSortOrder.allCases) { order in
-                                Text(order.rawValue).tag(order)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "arrow.up.arrow.down")
-                    }
-                    
-                    if !viewModel.state.all.isEmpty {
-                        Button(role: .destructive) {
-                            showingClearAlert = true
-                        } label: {
-                            Label("Удалить все", systemImage: "trash")
-                        }
-                    }
-                    
                     Menu {
                         Button(action: { showingAddImageNote = true }) {
-                            Label("Создать", systemImage: "plus")
+                            Label("Создать заметку", systemImage: "plus")
                         }
                         Button(action: { viewModel.send(.addRandom) }) {
                             Label("Случайная заметка", systemImage: "dice")
@@ -155,8 +94,49 @@ struct NotesView: View {
                         Button(action: { viewModel.send(.addSamples) }) {
                             Label("Заполнить примерами", systemImage: "photo.on.rectangle")
                         }
+                        Divider()
+                        Picker("Сортировка", selection: Binding(
+                            get: { viewModel.state.sortByTitle ? NoteSortOrder.title : NoteSortOrder.date },
+                            set: { viewModel.send(.sortByTitle($0 == .title)) }
+                        )) {
+                            ForEach(NoteSortOrder.allCases) { order in
+                                Text(order.rawValue).tag(order)
+                            }
+                        }
+                        if !viewModel.state.all.isEmpty {
+                            Divider()
+                            Button(role: .destructive, action: { showingClearAlert = true }) {
+                                Label("Удалить все", systemImage: "trash")
+                            }
+                        }
                     } label: {
-                        Image(systemName: "plus")
+                        Image(systemName: "ellipsis.circle")
+                    }
+                }
+#else
+                ToolbarItemGroup(placement: .automatic) {
+                    Menu {
+                        Button(action: { showingAddImageNote = true }) {
+                            Label("Создать заметку", systemImage: "plus")
+                        }
+                        Button(action: { viewModel.send(.addRandom) }) {
+                            Label("Случайная заметка", systemImage: "dice")
+                        }
+                        Picker("Сортировка", selection: Binding(
+                            get: { viewModel.state.sortByTitle ? NoteSortOrder.title : NoteSortOrder.date },
+                            set: { viewModel.send(.sortByTitle($0 == .title)) }
+                        )) {
+                            ForEach(NoteSortOrder.allCases) { order in
+                                Text(order.rawValue).tag(order)
+                            }
+                        }
+                        if !viewModel.state.all.isEmpty {
+                            Button(role: .destructive, action: { showingClearAlert = true }) {
+                                Label("Удалить все", systemImage: "trash")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
 #endif
@@ -172,7 +152,6 @@ struct NotesView: View {
                 }
                 Button("Отмена", role: .cancel) { }
             }
-        }
     }
 }
 

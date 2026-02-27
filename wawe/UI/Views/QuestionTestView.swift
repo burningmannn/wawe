@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Тест по вопросам
 struct QuestionTestView: View {
     @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel: QuestionsTestViewModel
     
     init(repo: QuestionsRepository) {
@@ -46,7 +47,7 @@ struct QuestionTestView: View {
                             viewModel.checkAnswer()
                         }
                         .buttonStyle(.borderedProminent)
-                        .foregroundStyle(.black)
+                        .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
                         .disabled(viewModel.answer.trimmed.isEmpty)
 
                         Button("Пропустить") {

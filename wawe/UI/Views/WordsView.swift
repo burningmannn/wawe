@@ -7,6 +7,7 @@ struct WordsView: View {
     @State private var showingTest = false
     @State private var showingClearAlert = false
     @State private var search = ""
+    @Environment(\.colorScheme) private var colorScheme
 
     init(repo: WordsRepository) {
         self.repo = repo
@@ -18,12 +19,6 @@ struct WordsView: View {
     @ViewBuilder
     private var listContent: some View {
         List {
-            Section("Статистика") {
-                StatisticRow(title: "Всего слов", systemImage: "number.square", value: viewModel.state.all.count)
-                if filteredWords.count != viewModel.state.all.count {
-                    StatisticRow(title: "В подборке", systemImage: "line.3.horizontal.decrease.circle", value: filteredWords.count)
-                }
-            }
             ForEach(filteredWords) { word in
                 NavigationLink {
                     EditWordView(
@@ -56,7 +51,6 @@ struct WordsView: View {
     }
 
     var body: some View {
-        NavigationStack {
             Group {
                 if filteredWords.isEmpty {
                     if viewModel.state.all.isEmpty {
@@ -68,6 +62,7 @@ struct WordsView: View {
                     listContent
 #if os(iOS)
                     .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
 #else
                     .listStyle(.automatic)
 #endif
@@ -78,7 +73,7 @@ struct WordsView: View {
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    ToolbarSearchField(text: $search, prompt: "Поиск")
+                    ToolbarSearchField(text: $search, prompt: "Поиск", count: viewModel.state.all.count)
                 }
 #if os(iOS)
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -162,7 +157,6 @@ struct WordsView: View {
             } message: {
                 Text("Действие нельзя отменить. Все слова будут удалены.")
             }
-        }
     }
 }
 
@@ -334,6 +328,7 @@ struct EditWordView: View {
 // MARK: - Тест
 struct TestView: View {
     @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel: TestViewModel
 
     init(repo: WordsRepository) {
@@ -373,7 +368,7 @@ struct TestView: View {
                     HStack {
                         Button("Проверить") { viewModel.checkAnswer() }
                             .buttonStyle(.borderedProminent)
-                            .foregroundStyle(.black)
+                            .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
                         Button("Пропустить") { viewModel.nextWord() }
                             .buttonStyle(.bordered)
                     }
