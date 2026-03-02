@@ -43,7 +43,7 @@ struct WordsView: View {
                     Button { viewModel.send(.markCorrect(word)) } label: {
                         Label("+1 прогресс", systemImage: "checkmark.circle")
                     }
-                    .tint(.blue)
+                    .tint(.accentColor)
                 }
             }
             .onDelete(perform: { offsets in viewModel.send(.delete(offsets)) })

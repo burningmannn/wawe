@@ -36,27 +36,17 @@ struct YearProgressGrid: View {
         return matrix
     }
 
-    private var maxCount: Int { counts.values.max() ?? 0 }
-
-    // MARK: - GitHub-style 4-level intensity
+    // MARK: - Category-based 3-level shading
     // 0 → empty (just border)
-    // 1 → lightest fill
-    // …
-    // max → vivid full colour
+    // 1–2 categories done → dim fill
+    // 3 categories done  → vivid full colour
 
     private func shade(for value: Int, isFuture: Bool) -> Color {
-        // Future dates: invisible
         if isFuture { return .clear }
-
-        // Zero activity: empty placeholder (barely-there border comes via overlay)
-        guard maxCount > 0, value > 0 else { return .clear }
-
-        let ratio = min(Double(value) / Double(maxCount), 1.0)
-        switch ratio {
-        case ..<0.25: return color.opacity(0.28)  // level 1 – lightest
-        case 0.25..<0.50: return color.opacity(0.52) // level 2
-        case 0.50..<0.75: return color.opacity(0.76) // level 3
-        default:         return color              // level 4 – vivid
+        switch value {
+        case 0:     return .clear
+        case 1, 2:  return color.opacity(0.35)  // partial day
+        default:    return color                 // all 3 done
         }
     }
 

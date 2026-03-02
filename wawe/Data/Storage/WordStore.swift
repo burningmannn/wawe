@@ -165,7 +165,7 @@ He is *tall* (рост) and *strong* (физическое состояние) f
 
     // Отметить правильный ответ
     func markCorrect(_ word: Word) {
-        markItemCorrect(word, in: \.words, limit: wordRepeatLimit) { [weak self] idx in
+        markItemCorrect(word, in: \.words, limit: wordRepeatLimit, category: "word") { [weak self] idx in
             self?.completeWord(at: idx)
         }
     }
@@ -207,7 +207,7 @@ He is *tall* (рост) and *strong* (физическое состояние) f
     }
     
     func markIrregularVerbCorrect(_ verb: IrregularVerb) {
-        markItemCorrect(verb, in: \.irregularVerbs, limit: verbRepeatLimit) { [weak self] idx in
+        markItemCorrect(verb, in: \.irregularVerbs, limit: verbRepeatLimit, category: "verb") { [weak self] idx in
             self?.completeVerb(at: idx)
         }
     }
@@ -238,7 +238,7 @@ He is *tall* (рост) and *strong* (физическое состояние) f
     }
 
     func markQuestionCorrect(_ question: QuestionItem) {
-        markItemCorrect(question, in: \.questions, limit: questionRepeatLimit) { [weak self] idx in
+        markItemCorrect(question, in: \.questions, limit: questionRepeatLimit, category: "question") { [weak self] idx in
             self?.completeQuestion(at: idx)
         }
     }
@@ -304,15 +304,15 @@ He is *tall* (рост) and *strong* (физическое состояние) f
 
     // MARK: - Generic Logic
 
-    private func markItemCorrect<T: LearnableItem>(_ item: T, in keyPath: ReferenceWritableKeyPath<WordStore, [T]>, limit: Int, completeAction: (Int) -> Void) {
+    private func markItemCorrect<T: LearnableItem>(_ item: T, in keyPath: ReferenceWritableKeyPath<WordStore, [T]>, limit: Int, category: String, completeAction: (Int) -> Void) {
         var items = self[keyPath: keyPath]
         guard let idx = items.firstIndex(where: { $0.id == item.id }) else { return }
-        
+
         items[idx].correctCount += 1
         self[keyPath: keyPath] = items
-        
-        recordDailyProgress()
-        
+
+        recordDailyProgress(category: category)
+
         if items[idx].correctCount >= limit {
             completeAction(idx)
         }
@@ -679,29 +679,29 @@ He is *tall* (рост) and *strong* (физическое состояние) f
         return added
     }
 
-    private func recordDailyProgress() {
+    private func recordDailyProgress(category: String) {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         let todayKey = formatter.string(from: Date())
         let defaults = UserDefaults.standard
+
+        // Per-category tracking (used for calendar coloring)
+        let catKey = "progressDays_\(category)"
+        let catRaw = defaults.string(forKey: catKey) ?? ""
+        var catSet = Set(catRaw.split(separator: ",").map { String($0) })
+        if !catSet.contains(todayKey) {
+            catSet.insert(todayKey)
+            defaults.set(Array(catSet).sorted().joined(separator: ","), forKey: catKey)
+        }
+
+        // Combined key — used for streak count (any practice = day counts)
         let raw = defaults.string(forKey: "progressDays") ?? ""
         var set = Set(raw.split(separator: ",").map { String($0) })
         if !set.contains(todayKey) {
             set.insert(todayKey)
             defaults.set(Array(set).sorted().joined(separator: ","), forKey: "progressDays")
-        }
-        let decoder = JSONDecoder()
-        let encoder = JSONEncoder()
-        var map: [String: Int] = [:]
-        if let data = defaults.data(forKey: "progressDayCounts"),
-           let decoded = try? decoder.decode([String:Int].self, from: data) {
-            map = decoded
-        }
-        map[todayKey] = (map[todayKey] ?? 0) + 1
-        if let data = try? encoder.encode(map) {
-            defaults.set(data, forKey: "progressDayCounts")
         }
     }
 

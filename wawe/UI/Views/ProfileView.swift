@@ -21,12 +21,10 @@ private extension Color {
 struct ProfileView: View {
     @StateObject private var viewModel: ProfileViewModel
     private let settingsRepo: SettingsRepository
-    private let notesRepo: NotesRepository
     @Environment(\.colorScheme) private var colorScheme
 
     // Trigger for staggered entrance animations
     @State private var appeared = false
-    @State private var showingNotes = false
 
     private var profileNameBinding: Binding<String> {
         Binding(get: { viewModel.profileName }, set: { viewModel.profileName = $0 })
@@ -36,10 +34,8 @@ struct ProfileView: View {
     }
 
     init(wordsRepo: WordsRepository, verbsRepo: IrregularVerbsRepository,
-         questionsRepo: QuestionsRepository, settingsRepo: SettingsRepository,
-         notesRepo: NotesRepository) {
+         questionsRepo: QuestionsRepository, settingsRepo: SettingsRepository) {
         self.settingsRepo = settingsRepo
-        self.notesRepo = notesRepo
         _viewModel = StateObject(wrappedValue: ProfileViewModel(
             wordsRepo: wordsRepo, verbsRepo: verbsRepo, questionsRepo: questionsRepo))
     }
@@ -56,11 +52,6 @@ struct ProfileView: View {
                 ToolbarItem(placement: .principal) {
                     Text("Профиль")
                         .font(.subheadline.weight(.semibold))
-                }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button { showingNotes = true } label: {
-                        Image(systemName: "note.text")
-                    }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack {
@@ -94,38 +85,28 @@ struct ProfileView: View {
             .sheet(isPresented: $viewModel.showingSettingsSheet) {
                 SettingsView(repo: settingsRepo)
             }
-            .sheet(isPresented: $showingNotes) {
-                NavigationStack {
-                    NotesView(repo: notesRepo)
-                }
-            }
     }
 
     // MARK: - Main content
 
     private var profileContent: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: 16) {
                 streakHeroSection
                     .offset(y: appeared ? 0 : 30)
                     .opacity(appeared ? 1 : 0)
                     .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.05), value: appeared)
 
-                progressSection
+                bookReadCard
                     .offset(y: appeared ? 0 : 30)
                     .opacity(appeared ? 1 : 0)
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.15), value: appeared)
-
-                distributionBarSection
-                    .offset(y: appeared ? 0 : 30)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.22), value: appeared)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.18), value: appeared)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 24)
+            .padding(.top, 16)
+            .padding(.bottom, 32)
         }
-        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
         .onAppear { appeared = true }
         .overlay(alignment: .bottom) {
             if viewModel.showCopiedToast {
@@ -156,150 +137,211 @@ struct ProfileView: View {
 
     // MARK: - Streak hero
 
+    /// Opacity for a segment: 4 categories × 25% each = 100%
+    private func segmentOpacity(catCount: Int) -> Double {
+        switch catCount {
+        case 0:     return 0.0
+        case 1:     return 0.25
+        case 2:     return 0.50
+        case 3:     return 0.75
+        default:    return 1.0
+        }
+    }
+
+    /// Get Russian weekday abbreviation for the given number of days ago
+    private func weekdayAbbrev(daysAgo: Int) -> String {
+        let cal = Calendar.current
+        let date = cal.date(byAdding: .day, value: -daysAgo, to: Date()) ?? Date()
+        let idx = cal.component(.weekday, from: date) - 1
+        let symbols = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"]
+        return symbols[idx]
+    }
+
     private var streakHeroSection: some View {
         let count    = viewModel.streakCount
-        let progress = count == 0 ? 0.0 : min(Double(count), 7.0) / 7.0
         let isActive = count > 0
-        let ringColor: Color = isActive ? .accentColor : Color.secondary.opacity(0.4)
+        let countsMap = viewModel.progressCategoryCountsMap
+        let cal       = Calendar.current
 
-        return VStack(spacing: 10) {
-            ZStack {
-                // Track
-                Circle()
-                    .stroke(Color.secondary.opacity(0.15), lineWidth: 10)
-                // Fill
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(ringColor,
-                            style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeOut(duration: 0.9), value: progress)
-                // Centre
-                VStack(spacing: 2) {
-                    Text("\(count)")
-                        .font(.system(size: 52, weight: .bold, design: .rounded))
-                        .foregroundStyle(isActive ? Color.primary : Color.secondary)
-                        .contentTransition(.numericText())
-                        .animation(.spring(response: 0.4), value: count)
-                    Text("дней")
+        // Date formatter (same key format as WordStore)
+        let fmt = DateFormatter()
+        fmt.calendar = Calendar(identifier: .gregorian)
+        fmt.locale   = Locale(identifier: "en_US_POSIX")
+        fmt.dateFormat = "yyyy-MM-dd"
+
+        // Last 7 days: index 0 = 6 days ago, index 6 = today
+        let opacities: [Double] = (0..<7).map { i in
+            let daysAgo = 6 - i
+            let date = cal.date(byAdding: .day, value: -daysAgo, to: Date()) ?? Date()
+            let catCount = countsMap[fmt.string(from: date)] ?? 0
+            return segmentOpacity(catCount: catCount)
+        }
+
+        // Ring geometry: 7 equal arcs with small gaps
+        let gapFraction  = 2.5 / 360.0
+        let segFraction  = (1.0 - 7.0 * gapFraction) / 7.0
+
+        return VStack(spacing: 20) {
+            // Premium card container
+            VStack(spacing: 20) {
+                // Ring with segments
+                ZStack {
+                    // Background track
+                    Circle()
+                        .stroke(Color.secondary.opacity(0.10), lineWidth: 12)
+
+                    // 7 daily segments with glow
+                    ForEach(0..<7, id: \.self) { i in
+                        let start   = Double(i) * (segFraction + gapFraction)
+                        let end     = start + segFraction
+                        let opacity = opacities[i]
+
+                        Circle()
+                            .trim(from: start, to: end)
+                            .stroke(
+                                opacity > 0
+                                    ? Color.accentColor.opacity(opacity)
+                                    : Color.clear,
+                                style: StrokeStyle(lineWidth: 12, lineCap: .butt)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .shadow(color: opacity > 0 ? Color.accentColor.opacity(0.3) : Color.clear, radius: 8)
+                            .animation(.easeOut(duration: 0.5).delay(Double(i) * 0.07), value: opacity)
+                    }
+
+                    // Centre label
+                    VStack(spacing: 4) {
+                        Text("\(count)")
+                            .font(.system(size: 56, weight: .bold, design: .rounded))
+                            .foregroundStyle(isActive ? Color.primary : Color.secondary)
+                            .contentTransition(.numericText())
+                            .animation(.spring(response: 0.4), value: count)
+                        Text("дней")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(width: 160, height: 160)
+
+                // Weekday labels below ring
+                HStack(spacing: 0) {
+                    ForEach(0..<7, id: \.self) { i in
+                        let daysAgo = 6 - i
+                        let isToday = daysAgo == 0
+                        VStack {
+                            Text(weekdayAbbrev(daysAgo: daysAgo))
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(isToday ? Color.accentColor : Color.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.horizontal, 4)
+
+                // Streak label
+                VStack(spacing: 3) {
+                    Text("стрик")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text("последние 7 дней")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 140, height: 140)
-
-            Text("стрик")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 28)
+            .background(
+                colorScheme == .dark
+                    ? Color(white: 0.08)
+                    : Color.white
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .shadow(
+                color: colorScheme == .dark
+                    ? Color.clear
+                    : Color.black.opacity(0.08),
+                radius: 12,
+                y: 4
+            )
         }
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Progress card
+    // MARK: - Book read card
 
-    private var progressSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Прогресс")
-                .font(.title2.bold())
+    private var bookReadCard: some View {
+        let done = viewModel.bookReadToday
+        @GestureState var isPressed = false
 
-            VStack(spacing: 0) {
-                ProgressRowCard(
-                    icon: "book.fill",
-                    label: "Слова",
-                    learned: viewModel.learnedWordsCount,
-                    total: viewModel.totalWordsCount,
-                    color: .catWords
-                )
-                Divider().padding(.horizontal, 16)
-                ProgressRowCard(
-                    icon: "textformat.abc",
-                    label: "Глаголы",
-                    learned: viewModel.learnedVerbsCount,
-                    total: viewModel.totalVerbsCount,
-                    color: .catVerbs
-                )
-                Divider().padding(.horizontal, 16)
-                ProgressRowCard(
-                    icon: "questionmark.circle.fill",
-                    label: "Вопросы",
-                    learned: viewModel.learnedQuestionsCount,
-                    total: viewModel.totalQuestionsCount,
-                    color: .catQuestions
-                )
+        return Button { viewModel.toggleBookRead() } label: {
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(done ? Color.accentColor.opacity(0.15) : Color.secondary.opacity(0.08))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: done ? "book.fill" : "book")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(done ? Color.accentColor : .secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Читал книгу")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(done ? "Отмечено на сегодня" : "Нажми, чтобы отметить")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 26))
+                    .foregroundStyle(done ? Color.accentColor : Color.secondary.opacity(0.3))
+                    .animation(.spring(response: 0.3), value: done)
             }
-            .background(cardBg)
+            .padding(16)
+            .background(
+                done
+                    ? LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color.accentColor.opacity(0.12),
+                            Color.accentColor.opacity(0.05)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    : LinearGradient(
+                        gradient: Gradient(colors: [
+                            colorScheme == .dark
+                                ? Color(white: 0.12)
+                                : Color.white,
+                            colorScheme == .dark
+                                ? Color(white: 0.12)
+                                : Color.white
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+            )
             .clipShape(RoundedRectangle(cornerRadius: 18))
+            .scaleEffect(isPressed ? 0.97 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
         }
-    }
-
-    // MARK: - Distribution bar (reference-inspired)
-
-    private var distributionBarSection: some View {
-        let w = max(viewModel.learnedWordsCount, 0)
-        let v = max(viewModel.learnedVerbsCount, 0)
-        let q = max(viewModel.learnedQuestionsCount, 0)
-        let total = w + v + q
-
-        return VStack(alignment: .leading, spacing: 12) {
-            // Labels row
-            HStack(spacing: 0) {
-                ForEach([
-                    ("Слова",    Color.catWords,     w),
-                    ("Глаголы",  Color.catVerbs,     v),
-                    ("Вопросы",  Color.catQuestions, q)
-                ], id: \.0) { name, color, count in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(name)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(color)
-                        HStack(alignment: .lastTextBaseline, spacing: 2) {
-                            Text("\(count)")
-                                .font(.title3.bold())
-                                .foregroundStyle(.primary)
-                                .contentTransition(.numericText())
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        .buttonStyle(.plain)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in }
+                .updating($isPressed) { _, state, _ in
+                    state = true
                 }
-            }
-
-            // Coloured strip
-            if total > 0 {
-                GeometryReader { geo in
-                    HStack(spacing: 3) {
-                        if w > 0 {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.catWords)
-                                .frame(width: geo.size.width * CGFloat(w) / CGFloat(total))
-                        }
-                        if v > 0 {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.catVerbs)
-                                .frame(width: geo.size.width * CGFloat(v) / CGFloat(total))
-                        }
-                        if q > 0 {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.catQuestions)
-                                .frame(width: geo.size.width * CGFloat(q) / CGFloat(total))
-                        }
-                    }
-                }
-                .frame(height: 10)
-                .animation(.easeOut(duration: 0.7), value: total)
-            } else {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.secondary.opacity(0.15))
-                    .frame(height: 10)
-            }
-        }
-        .padding(16)
-        .background(cardBg)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
+        )
     }
 
     // MARK: - Helpers
 
-    private var cardBg: some ShapeStyle {
+    var cardBg: AnyShapeStyle {
         colorScheme == .dark
             ? AnyShapeStyle(Color(white: 0.12))
             : AnyShapeStyle(Color.white.shadow(.drop(color: .black.opacity(0.06), radius: 8, y: 3)))
@@ -308,78 +350,35 @@ struct ProfileView: View {
 
 // MARK: - Progress Row Card
 
-private struct ProgressRowCard: View {
-    let icon: String
+// MARK: - Stat Tile
+
+private struct StatTile: View {
+    let value: Int
     let label: String
-    let learned: Int
-    let total: Int
+    let icon: String
     let color: Color
-
-    @State private var animProgress: Double = 0
-
-    private var progress: Double {
-        guard total > 0 else { return 0 }
-        return min(Double(learned) / Double(total), 1.0)
-    }
+    let bg: AnyShapeStyle
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(color)
-                    .frame(width: 22)
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(color)
 
-                Text(label)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                // "X / Y" or just "X изучено"
-                Group {
-                    if total > 0 {
-                        Text("\(learned)")
-                            .foregroundStyle(color)
-                            .bold()
-                        + Text(" / \(total)")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("\(learned) изучено")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .font(.subheadline.monospacedDigit())
+            Text("\(value)")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
                 .contentTransition(.numericText())
-                .animation(.spring(response: 0.4), value: learned)
-            }
+                .animation(.spring(response: 0.4), value: value)
 
-            // Animated progress bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(color.opacity(0.15))
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(color)
-                        .frame(width: geo.size.width * animProgress)
-                        .animation(.easeOut(duration: 0.85), value: animProgress)
-                }
-            }
-            .frame(height: 6)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .onAppear {
-            // Slight delay so the card entrance animation completes first
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                withAnimation(.easeOut(duration: 0.85)) {
-                    animProgress = progress
-                }
-            }
-        }
-        .onChange(of: progress) { _, new in
-            withAnimation(.easeOut(duration: 0.6)) { animProgress = new }
-        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(bg)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 

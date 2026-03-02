@@ -30,11 +30,11 @@ struct ContentView: View {
         preferredColorScheme ?? systemScheme
     }
 
-    // #C8F135 — neon lime green, как на тёмном референсе
-    private static let neonAccent = Color(red: 0.784, green: 0.945, blue: 0.208)
+    // Deep purple — единый акцент для тёмной и светлой темы
+    private static let crimsonAccent = Color(red: 0.58, green: 0.28, blue: 0.88)
 
     private var accentColor: Color {
-        effectiveScheme == .dark ? Self.neonAccent : .black
+        Self.crimsonAccent
     }
 
     var body: some View {
@@ -61,10 +61,10 @@ struct ContentView: View {
             }
 
             NavigationStack {
-                TestsView(repo: container.testsRepo)
+                NotesView(repo: container.notesRepo)
             }
             .tabItem {
-                Label("Тесты", systemImage: "pencil.and.list.clipboard")
+                Label("Заметки", systemImage: "note.text")
             }
 
             NavigationStack {
@@ -72,8 +72,7 @@ struct ContentView: View {
                     wordsRepo: container.wordsRepo,
                     verbsRepo: container.verbsRepo,
                     questionsRepo: container.questionsRepo,
-                    settingsRepo: container.settingsRepo,
-                    notesRepo: container.notesRepo
+                    settingsRepo: container.settingsRepo
                 )
             }
             .tabItem {
@@ -83,15 +82,20 @@ struct ContentView: View {
         .preferredColorScheme(preferredColorScheme)
         .tint(accentColor)
         .onAppear {
+            #if canImport(UIKit)
             AppAppearance.apply(scheme: effectiveScheme)
+            #endif
         }
         .onChange(of: appTheme) { _, _ in
+            #if canImport(UIKit)
             AppAppearance.apply(scheme: effectiveScheme)
+            #endif
         }
         .onChange(of: systemScheme) { _, _ in
-            // Re-apply when system switches (only matters when theme = "system")
             if appTheme == "system" {
+                #if canImport(UIKit)
                 AppAppearance.apply(scheme: effectiveScheme)
+                #endif
             }
         }
     }

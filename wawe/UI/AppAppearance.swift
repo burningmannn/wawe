@@ -1,20 +1,21 @@
-import UIKit
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
 
 // MARK: - Global UIAppearance configuration
-// Light theme: warm cream background (#FAF8F3) + white cards + clean tab bar
-// Dark theme: system dark defaults
+// Light theme: pure white surfaces + crimson accent
+// Dark theme: pure black surfaces + crimson accent
 
 enum AppAppearance {
 
     // MARK: - Palette
 
-    /// Warm off-white, like the reference editorial design (#FAF8F3)
-    static let lightBg = UIColor(red: 0.980, green: 0.973, blue: 0.953, alpha: 1)
-    /// Slightly warm white for nav/tab bar surfaces
-    static let lightSurface = UIColor(red: 0.995, green: 0.993, blue: 0.985, alpha: 1)
-    /// Neon lime accent (#C8F135) — used for selected tab items in dark mode
-    static let darkAccent = UIColor(red: 0.784, green: 0.945, blue: 0.208, alpha: 1)
+    /// Pure white — nav/tab bar in light theme
+    static let lightSurface = UIColor.white
+    /// Pure black — nav/tab bar in dark theme
+    static let darkSurface  = UIColor.black
+    /// Deep purple accent — selected items in both themes
+    static let darkAccent   = UIColor(red: 0.58, green: 0.28, blue: 0.88, alpha: 1)
 
     // MARK: - Apply
 
@@ -22,6 +23,15 @@ enum AppAppearance {
         // Resolve effective scheme: nil = follows system, but we style as light by default
         let isDark = scheme == .dark
         isDark ? applyDark() : applyLight()
+
+        // Force already-rendered UIKit views (nav bar, tab bar) to re-read UIAppearance.
+        // Without this, changing the theme requires navigating away and back.
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .forEach { window in
+                window.subviews.forEach { $0.removeFromSuperview(); window.addSubview($0) }
+            }
     }
 
     // MARK: - Light
@@ -55,7 +65,7 @@ enum AppAppearance {
         tab.backgroundColor = lightSurface
         tab.shadowColor = UIColor.black.withAlphaComponent(0.08)
 
-        // Item colors — unselected: dark gray; selected: neon lime (via SwiftUI tint)
+        // Item colors — unselected: dark gray; selected: crimson
         let normal   = UITabBarItemAppearance()
         normal.normal.iconColor   = UIColor.black.withAlphaComponent(0.35)
         normal.normal.titleTextAttributes   = [.foregroundColor: UIColor.black.withAlphaComponent(0.35)]
@@ -82,16 +92,28 @@ enum AppAppearance {
     // MARK: - Dark
 
     static func applyDark() {
-        // Reset nav bar to system dark defaults
+        // Nav bar: pure black
         let nav = UINavigationBarAppearance()
-        nav.configureWithDefaultBackground()
+        nav.configureWithOpaqueBackground()
+        nav.backgroundColor = darkSurface
+        nav.shadowColor = .clear
+        nav.titleTextAttributes = [
+            .font: UIFont.systemFont(ofSize: 16, weight: .semibold),
+            .foregroundColor: UIColor.white
+        ]
+        nav.largeTitleTextAttributes = [
+            .font: UIFont.systemFont(ofSize: 32, weight: .bold),
+            .foregroundColor: UIColor.white
+        ]
         UINavigationBar.appearance().standardAppearance    = nav
         UINavigationBar.appearance().scrollEdgeAppearance  = nav
         UINavigationBar.appearance().compactAppearance     = nav
 
-        // Tab bar: dark background + neon lime for selected items
+        // Tab bar: pure black + crimson for selected items
         let tab = UITabBarAppearance()
-        tab.configureWithDefaultBackground()
+        tab.configureWithOpaqueBackground()
+        tab.backgroundColor = darkSurface
+        tab.shadowColor = .clear
 
         let item = UITabBarItemAppearance()
         item.normal.iconColor   = UIColor.white.withAlphaComponent(0.4)
@@ -113,6 +135,7 @@ enum AppAppearance {
         UISegmentedControl.appearance().setTitleTextAttributes([:], for: .normal)
     }
 }
+#endif
 
 // MARK: - SwiftUI colour tokens (use in views)
 

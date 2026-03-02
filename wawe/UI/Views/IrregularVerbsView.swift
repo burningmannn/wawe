@@ -492,7 +492,7 @@ struct StepProgressView: View {
                     // Линия между шагами
                     if step < totalSteps {
                         Rectangle()
-                            .fill(step < currentStep ? Color.blue : Color.gray.opacity(0.3))
+                            .fill(step < currentStep ? Color.accentColor : Color.gray.opacity(0.3))
                             .frame(height: 4)
                             .frame(maxWidth: .infinity)
                     }
@@ -504,9 +504,9 @@ struct StepProgressView: View {
     
     func stepColor(for step: Int) -> Color {
         if step < currentStep {
-            return .blue // Завершенные шаги
+            return .accentColor // Завершенные шаги
         } else if step == currentStep {
-            return .blue // Текущий шаг
+            return .accentColor // Текущий шаг
         } else {
             return .gray.opacity(0.3) // Будущие шаги
         }

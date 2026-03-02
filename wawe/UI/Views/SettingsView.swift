@@ -12,8 +12,17 @@ import UniformTypeIdentifiers
 // MARK: - Настройки
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel: SettingsViewModel
     @AppStorage("appTheme") private var appTheme: String = "system"
+
+    private var effectiveScheme: ColorScheme {
+        switch appTheme {
+        case "light": return .light
+        case "dark":  return .dark
+        default:      return colorScheme
+        }
+    }
 
     init(repo: SettingsRepository) {
         _viewModel = StateObject(wrappedValue: SettingsViewModel(repo: repo))
@@ -84,6 +93,10 @@ struct SettingsView: View {
             .navigationTitle("Настройки")
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
+#if canImport(UIKit)
+            .onAppear { AppAppearance.apply(scheme: effectiveScheme) }
+            .onChange(of: appTheme) { _, _ in AppAppearance.apply(scheme: effectiveScheme) }
 #endif
             .toolbar {
 #if os(iOS)
