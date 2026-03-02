@@ -5,12 +5,12 @@
 //  Created by burningmannn on 2/26/26.
 //
 
-import Testing
+import XCTest
 
-struct waweTests {
+final class waweTests: XCTestCase {
 
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    func testExample() throws {
+        // Write your test here and use APIs like XCTAssertEqual to check expected conditions.
     }
 
 }
