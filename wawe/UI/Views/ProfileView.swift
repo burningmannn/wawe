@@ -106,7 +106,7 @@ struct ProfileView: View {
             .padding(.top, 16)
             .padding(.bottom, 32)
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .background(Color(colorScheme == .dark ? .black : .white).ignoresSafeArea())
         .onAppear { appeared = true }
         .overlay(alignment: .bottom) {
             if viewModel.showCopiedToast {
