@@ -6,10 +6,8 @@ import Foundation
 class WordStore: ObservableObject {
     @AppStorage("wordRepeatLimit") var wordRepeatLimit: Int = 30
     @AppStorage("verbRepeatLimit") var verbRepeatLimit: Int = 30
-    @AppStorage("questionRepeatLimit") var questionRepeatLimit: Int = 30
     @AppStorage("learnedWordsTotal") var learnedWordsTotal: Int = 0
     @AppStorage("learnedVerbsTotal") var learnedVerbsTotal: Int = 0
-    @AppStorage("learnedQuestionsTotal") var learnedQuestionsTotal: Int = 0
 
     @Published var words: [Word] = [] {
         didSet { saveWords() }
@@ -17,10 +15,6 @@ class WordStore: ObservableObject {
     
     @Published var irregularVerbs: [IrregularVerb] = [] {
         didSet { saveIrregularVerbs() }
-    }
-
-    @Published var questions: [QuestionItem] = [] {
-        didSet { saveQuestions() }
     }
 
     @Published var imageNotes: [ImageNote] = [] {
@@ -144,11 +138,7 @@ He is *tall* (рост) and *strong* (физическое состояние) f
     func clearIrregularVerbs() {
         irregularVerbs.removeAll()
     }
-    
-    func clearQuestions() {
-        questions.removeAll()
-    }
-    
+
     func clearImageNotes() {
         imageNotes.removeAll()
     }
@@ -174,7 +164,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
     func pruneReachedLimit() {
         removeCompletedWords(countAsLearned: false)
         removeCompletedVerbs(countAsLearned: false)
-        removeCompletedQuestions(countAsLearned: false)
     }
 
     // MARK: - Методы для неправильных глаголов
@@ -212,37 +201,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
         }
     }
 
-    // MARK: - Методы для вопросов
-    func addQuestion(prompt: String, answer: String) {
-        questions.append(QuestionItem(
-            prompt: prompt.trimmedLowercasedIfNeeded(),
-            answer: answer.trimmedLowercasedIfNeeded()
-        ))
-    }
-
-    func removeQuestion(at offsets: IndexSet) {
-        questions.remove(atOffsets: offsets)
-    }
-
-    func removeQuestion(_ question: QuestionItem) {
-        questions.removeAll { $0.id == question.id }
-    }
-
-    func updateQuestion(_ question: QuestionItem, prompt: String, answer: String, resetProgress: Bool = false) {
-        guard let idx = questions.firstIndex(where: { $0.id == question.id }) else { return }
-        questions[idx].prompt = prompt
-        questions[idx].answer = answer
-        if resetProgress {
-            questions[idx].correctCount = 0
-        }
-    }
-
-    func markQuestionCorrect(_ question: QuestionItem) {
-        markItemCorrect(question, in: \.questions, limit: questionRepeatLimit, category: "question") { [weak self] idx in
-            self?.completeQuestion(at: idx)
-        }
-    }
-
     func resetAllProgress(resetCounters: Bool = true) {
         words = words.map { word in
             var mutableWord = word
@@ -254,12 +212,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
             var mutableVerb = verb
             mutableVerb.correctCount = 0
             return mutableVerb
-        }
-
-        questions = questions.map { question in
-            var mutableQuestion = question
-            mutableQuestion.correctCount = 0
-            return mutableQuestion
         }
     }
 
@@ -277,12 +229,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
                 mutableVerb.correctCount = 0
                 return mutableVerb
             }
-        case .questions:
-            questions = questions.map { question in
-                var mutableQuestion = question
-                mutableQuestion.correctCount = 0
-                return mutableQuestion
-            }
         }
     }
 
@@ -290,7 +236,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
         switch section {
         case .words: return wordRepeatLimit
         case .verbs: return verbRepeatLimit
-        case .questions: return questionRepeatLimit
         }
     }
 
@@ -298,7 +243,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
         switch section {
         case .words: return words.count
         case .verbs: return irregularVerbs.count
-        case .questions: return questions.count
         }
     }
 
@@ -348,10 +292,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
 
     private func completeVerb(at index: Int, countAsLearned: Bool = true) {
         completeItem(at: index, in: \.irregularVerbs, counterKeyPath: \.learnedVerbsTotal, countAsLearned: countAsLearned)
-    }
-
-    private func completeQuestion(at index: Int, countAsLearned: Bool = true) {
-        completeItem(at: index, in: \.questions, counterKeyPath: \.learnedQuestionsTotal, countAsLearned: countAsLearned)
     }
 
     func addNoteTable(title: String, footer: [String] = []) {
@@ -433,10 +373,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
         removeCompletedItems(in: \.irregularVerbs, limit: verbRepeatLimit, counterKeyPath: \.learnedVerbsTotal, countAsLearned: countAsLearned)
     }
 
-    private func removeCompletedQuestions(countAsLearned: Bool = true) {
-        removeCompletedItems(in: \.questions, limit: questionRepeatLimit, counterKeyPath: \.learnedQuestionsTotal, countAsLearned: countAsLearned)
-    }
-
     private func merge<T: LearnableItem>(_ importedItems: [T], into existingItems: inout [T], itemDescription: (T) -> String) -> Int {
         var importedCount = 0
         for importedItem in importedItems {
@@ -460,10 +396,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
 
     private func mergeVerbs(_ importedVerbs: [IrregularVerb]) -> Int {
         merge(importedVerbs, into: &irregularVerbs) { "\($0.infinitive) - \($0.pastSimple) - \($0.pastParticiple)" }
-    }
-
-    private func mergeQuestions(_ importedQuestions: [QuestionItem]) -> Int {
-        merge(importedQuestions, into: &questions) { "\($0.prompt) -> \($0.answer)" }
     }
 
     private func mergeNotesTables(_ importedTables: [FlexNoteTable]) -> Int {
@@ -513,9 +445,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
         if defaults.object(forKey: "verbRepeatLimit") == nil {
             verbRepeatLimit = legacyLimit
         }
-        if defaults.object(forKey: "questionRepeatLimit") == nil {
-            questionRepeatLimit = legacyLimit
-        }
 
         defaults.removeObject(forKey: "repeatLimit")
     }
@@ -527,16 +456,14 @@ He is *tall* (рост) and *strong* (физическое состояние) f
         let payload = BackupPayload(
             words: words,
             irregularVerbs: irregularVerbs,
-            questions: questions,
             imageNotes: imageNotes,
             notesTables: notesTables,
             testItems: testItems,
             settings: BackupSettings(
                 wordRepeatLimit: wordRepeatLimit,
-                verbRepeatLimit: verbRepeatLimit,
-                questionRepeatLimit: questionRepeatLimit
+                verbRepeatLimit: verbRepeatLimit
             ),
-            version: "2.2",
+            version: "2.3",
             exportDate: Date()
         )
 
@@ -584,11 +511,10 @@ He is *tall* (рост) and *strong* (физическое состояние) f
     // MARK: - Apply Methods
 
     private func apply(payload: BackupPayload) -> Bool {
-        print("Applying BackupPayload with \(payload.words.count) words, \(payload.irregularVerbs.count) verbs, \(payload.questions.count) questions, \(payload.imageNotes.count) imageNotes, \(payload.notesTables.count) notesTables")
+        print("Applying BackupPayload with \(payload.words.count) words, \(payload.irregularVerbs.count) verbs, \(payload.imageNotes.count) imageNotes, \(payload.notesTables.count) notesTables")
 
         let importedWords = mergeWords(payload.words)
         let importedVerbs = mergeVerbs(payload.irregularVerbs)
-        let importedQuestions = mergeQuestions(payload.questions)
         let importedImageNotes = mergeImageNotes(payload.imageNotes)
         let importedNotesTables = mergeNotesTables(payload.notesTables)
         let importedTestItems = mergeTestItems(payload.testItems)
@@ -596,13 +522,11 @@ He is *tall* (рост) and *strong* (физическое состояние) f
         let settings = payload.settings
         wordRepeatLimit = settings.wordRepeatLimit
         verbRepeatLimit = settings.verbRepeatLimit
-        questionRepeatLimit = settings.questionRepeatLimit
 
         removeCompletedWords(countAsLearned: false)
         removeCompletedVerbs(countAsLearned: false)
-        removeCompletedQuestions(countAsLearned: false)
 
-        print("Payload import summary: +\(importedWords) words, +\(importedVerbs) verbs, +\(importedQuestions) questions, +\(importedImageNotes) imageNotes, +\(importedNotesTables) notesTables, +\(importedTestItems) testItems")
+        print("Payload import summary: +\(importedWords) words, +\(importedVerbs) verbs, +\(importedImageNotes) imageNotes, +\(importedNotesTables) notesTables, +\(importedTestItems) testItems")
 
         // Payload was valid — import is always considered successful
         return true
@@ -616,13 +540,11 @@ He is *tall* (рост) and *strong* (физическое состояние) f
 
         var settingsChanged = false
         if let newLimit = exportData.settings["repeatLimit"] {
-            settingsChanged = newLimit != wordRepeatLimit || newLimit != verbRepeatLimit || newLimit != questionRepeatLimit
+            settingsChanged = newLimit != wordRepeatLimit || newLimit != verbRepeatLimit
             wordRepeatLimit = newLimit
             verbRepeatLimit = newLimit
-            questionRepeatLimit = newLimit
             removeCompletedWords(countAsLearned: false)
             removeCompletedVerbs(countAsLearned: false)
-            removeCompletedQuestions(countAsLearned: false)
             print("Settings updated from ExportDataV1: repeatLimit = \(newLimit)")
         }
 
@@ -636,13 +558,11 @@ He is *tall* (рост) and *strong* (физическое состояние) f
 
         var settingsChanged = false
         if let newLimit = legacyData.settings["repeatLimit"] {
-            settingsChanged = newLimit != wordRepeatLimit || newLimit != verbRepeatLimit || newLimit != questionRepeatLimit
+            settingsChanged = newLimit != wordRepeatLimit || newLimit != verbRepeatLimit
             wordRepeatLimit = newLimit
             verbRepeatLimit = newLimit
-            questionRepeatLimit = newLimit
             removeCompletedWords(countAsLearned: false)
             removeCompletedVerbs(countAsLearned: false)
-            removeCompletedQuestions(countAsLearned: false)
             print("Settings updated from LegacyExportData: repeatLimit = \(newLimit)")
         }
 
@@ -724,10 +644,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
         save(irregularVerbs, key: "irregularVerbs")
     }
 
-    private func saveQuestions() {
-        save(questions, key: "questions")
-    }
-
     private func saveNotes() {
         save(notesTables, key: "notesTables")
     }
@@ -770,10 +686,6 @@ He is *tall* (рост) and *strong* (физическое состояние) f
             irregularVerbs = loadedVerbs
         }
 
-        if let loadedQuestions = load(key: "questions", type: [QuestionItem].self) {
-            questions = loadedQuestions
-        }
-        
         if let loadedImageNotes = load(key: "imageNotes", type: [ImageNote].self) {
             imageNotes = loadedImageNotes
         }

@@ -4,21 +4,17 @@ import SwiftUI
 struct BackupSettings: Codable {
     var wordRepeatLimit: Int
     var verbRepeatLimit: Int
-    var questionRepeatLimit: Int
 
     init(wordRepeatLimit: Int = 30,
-         verbRepeatLimit: Int = 30,
-         questionRepeatLimit: Int = 30) {
+         verbRepeatLimit: Int = 30) {
         self.wordRepeatLimit = wordRepeatLimit
         self.verbRepeatLimit = verbRepeatLimit
-        self.questionRepeatLimit = questionRepeatLimit
     }
 }
 
 struct BackupPayload: Codable {
     var words: [Word]
     var irregularVerbs: [IrregularVerb]
-    var questions: [QuestionItem]
     var imageNotes: [ImageNote]
     var notesTables: [FlexNoteTable]
     var testItems: [TestItem]
@@ -28,7 +24,6 @@ struct BackupPayload: Codable {
 
     init(words: [Word],
          irregularVerbs: [IrregularVerb],
-         questions: [QuestionItem],
          imageNotes: [ImageNote],
          notesTables: [FlexNoteTable],
          testItems: [TestItem] = [],
@@ -37,7 +32,6 @@ struct BackupPayload: Codable {
          exportDate: Date) {
         self.words = words
         self.irregularVerbs = irregularVerbs
-        self.questions = questions
         self.imageNotes = imageNotes
         self.notesTables = notesTables
         self.testItems = testItems
@@ -50,7 +44,6 @@ struct BackupPayload: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         words = (try? container.decode([Word].self, forKey: .words)) ?? []
         irregularVerbs = (try? container.decode([IrregularVerb].self, forKey: .irregularVerbs)) ?? []
-        questions = (try? container.decode([QuestionItem].self, forKey: .questions)) ?? []
         imageNotes = (try? container.decode([ImageNote].self, forKey: .imageNotes)) ?? []
         notesTables = (try? container.decode([FlexNoteTable].self, forKey: .notesTables)) ?? []
         testItems = (try? container.decode([TestItem].self, forKey: .testItems)) ?? []

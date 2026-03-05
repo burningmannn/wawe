@@ -26,17 +26,5 @@
          XCTAssertEqual(vm.state.filtered.count, 1)
          XCTAssertEqual(vm.state.filtered.first?.infinitive, "go")
      }
-     
-     func testQuestionsFilter() {
-         let store = WordStore()
-         store.questions = [
-             QuestionItem(prompt: "Who are you?", answer: "I am John"),
-             QuestionItem(prompt: "Where are you?", answer: "In London"),
-         ]
-         let vm = QuestionsViewModel(store: store)
-         vm.send(.search("london"))
-         XCTAssertEqual(vm.state.filtered.count, 1)
-         XCTAssertEqual(vm.state.filtered.first?.answer, "In London")
-     }
  }
  #endif

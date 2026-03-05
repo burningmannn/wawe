@@ -21,10 +21,8 @@ final class ProfileViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var learnedWordsCount: Int = 0
     @Published var learnedVerbsCount: Int = 0
-    @Published var learnedQuestionsCount: Int = 0
     @Published var totalWordsCount: Int = 0
     @Published var totalVerbsCount: Int = 0
-    @Published var totalQuestionsCount: Int = 0
     @Published var streakCount: Int = 0
 
     @Published var editing = false
@@ -38,15 +36,11 @@ final class ProfileViewModel: ObservableObject {
     // MARK: - Dependencies
     private let wordsRepo: WordsRepository
     private let verbsRepo: IrregularVerbsRepository
-    private let questionsRepo: QuestionsRepository
-
     private var cancellables = Set<AnyCancellable>()
 
-    init(wordsRepo: WordsRepository, verbsRepo: IrregularVerbsRepository, questionsRepo: QuestionsRepository) {
+    init(wordsRepo: WordsRepository, verbsRepo: IrregularVerbsRepository) {
         self.wordsRepo = wordsRepo
         self.verbsRepo = verbsRepo
-        self.questionsRepo = questionsRepo
-
         bind()
         ensureDefaults()
     }
@@ -70,15 +64,6 @@ final class ProfileViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        questionsRepo.questionsPublisher
-            .receive(on: RunLoop.main)
-            .sink { [weak self] questions in
-                self?.totalQuestionsCount = questions.count
-                self?.updateLearnedCounts()
-                self?.updateStreak()
-            }
-            .store(in: &cancellables)
-
         updateLearnedCounts()
         updateStreak()
     }
@@ -86,7 +71,6 @@ final class ProfileViewModel: ObservableObject {
     private func updateLearnedCounts() {
         learnedWordsCount = wordsRepo.learnedWordsCount
         learnedVerbsCount = verbsRepo.learnedVerbsCount
-        learnedQuestionsCount = questionsRepo.learnedQuestionsCount
     }
 
     private func updateStreak() {
@@ -116,18 +100,16 @@ final class ProfileViewModel: ObservableObject {
     /// Returns [dateString: categoryCount] where value is 1-4
     /// (words + verbs + questions + book = 25% each → 100% at 4)
     var progressCategoryCountsMap: [String: Int] {
-        let wordDays     = daysSet(forKey: "progressDays_word")
-        let verbDays     = daysSet(forKey: "progressDays_verb")
-        let questionDays = daysSet(forKey: "progressDays_question")
-        let bookDays     = daysSet(forKey: "bookReadDays")
-        let allDays = wordDays.union(verbDays).union(questionDays).union(bookDays)
+        let wordDays = daysSet(forKey: "progressDays_word")
+        let verbDays = daysSet(forKey: "progressDays_verb")
+        let bookDays = daysSet(forKey: "bookReadDays")
+        let allDays = wordDays.union(verbDays).union(bookDays)
         var map: [String: Int] = [:]
         for day in allDays {
             var count = 0
-            if wordDays.contains(day)     { count += 1 }
-            if verbDays.contains(day)     { count += 1 }
-            if questionDays.contains(day) { count += 1 }
-            if bookDays.contains(day)     { count += 1 }
+            if wordDays.contains(day) { count += 1 }
+            if verbDays.contains(day) { count += 1 }
+            if bookDays.contains(day) { count += 1 }
             map[day] = count
         }
         return map

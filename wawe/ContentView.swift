@@ -54,13 +54,6 @@ struct ContentView: View {
             }
 
             NavigationStack {
-                QuestionsView(repo: container.questionsRepo)
-            }
-            .tabItem {
-                Label("Вопросы", systemImage: "questionmark.circle")
-            }
-
-            NavigationStack {
                 NotesView(repo: container.notesRepo)
             }
             .tabItem {
@@ -71,7 +64,6 @@ struct ContentView: View {
                 ProfileView(
                     wordsRepo: container.wordsRepo,
                     verbsRepo: container.verbsRepo,
-                    questionsRepo: container.questionsRepo,
                     settingsRepo: container.settingsRepo
                 )
             }
@@ -107,7 +99,6 @@ struct ContentView: View {
 // NotesView -> UI/Views/NotesView.swift
 // WordsView -> UI/Views/WordsView.swift
 // IrregularVerbsView -> UI/Views/IrregularVerbsView.swift
-// QuestionsView -> UI/Views/QuestionsView.swift
 
 #Preview {
     ContentView(container: AppContainer())

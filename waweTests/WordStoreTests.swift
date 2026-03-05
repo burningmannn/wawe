@@ -22,13 +22,5 @@
          XCTAssertEqual(store.irregularVerbs[0].correctCount, 1)
      }
      
-     func testQuestionFlow() {
-         let store = WordStore()
-         store.questions.removeAll()
-         store.addQuestion(prompt: "Who are you?", answer: "I am John")
-         XCTAssertEqual(store.questions.count, 1)
-         store.markQuestionCorrect(store.questions[0])
-         XCTAssertEqual(store.questions[0].correctCount, 1)
-     }
  }
  #endif

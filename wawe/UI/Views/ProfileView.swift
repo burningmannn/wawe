@@ -12,9 +12,8 @@ import AppKit
 
 // MARK: - Palette (reference-inspired vibrant colours)
 private extension Color {
-    static let catWords     = Color(red: 0.784, green: 0.945, blue: 0.208) // lime
-    static let catVerbs     = Color(red: 0.278, green: 0.784, blue: 0.925) // cyan
-    static let catQuestions = Color(red: 0.969, green: 0.420, blue: 0.420) // coral
+    static let catWords = Color(red: 0.784, green: 0.945, blue: 0.208) // lime
+    static let catVerbs = Color(red: 0.278, green: 0.784, blue: 0.925) // cyan
 }
 
 // MARK: - ProfileView
@@ -34,10 +33,10 @@ struct ProfileView: View {
     }
 
     init(wordsRepo: WordsRepository, verbsRepo: IrregularVerbsRepository,
-         questionsRepo: QuestionsRepository, settingsRepo: SettingsRepository) {
+         settingsRepo: SettingsRepository) {
         self.settingsRepo = settingsRepo
         _viewModel = StateObject(wrappedValue: ProfileViewModel(
-            wordsRepo: wordsRepo, verbsRepo: verbsRepo, questionsRepo: questionsRepo))
+            wordsRepo: wordsRepo, verbsRepo: verbsRepo))
     }
 
     var body: some View {

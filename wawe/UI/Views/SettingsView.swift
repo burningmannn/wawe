@@ -42,20 +42,12 @@ struct SettingsView: View {
         )
     }
     
-    private var questionLimitBinding: Binding<Int> {
-        Binding(
-            get: { viewModel.questionRepeatLimit },
-            set: { viewModel.questionRepeatLimit = $0 }
-        )
-    }
-
     var body: some View {
         NavigationStack {
             Form {
                 Section("Лимиты повторов") {
                     Stepper("Слова: \(viewModel.wordRepeatLimit)", value: wordLimitBinding, in: 1...100)
                     Stepper("Глаголы: \(viewModel.verbRepeatLimit)", value: verbLimitBinding, in: 1...100)
-                    Stepper("Вопросы: \(viewModel.questionRepeatLimit)", value: questionLimitBinding, in: 1...100)
                     Text("После достижения лимита элемент автоматически переносится в изученные.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)

@@ -8,9 +8,6 @@ final class SettingsViewModel: ObservableObject {
     @AppStorage("verbRepeatLimit") var verbRepeatLimit: Int = 30 {
         didSet { prune() }
     }
-    @AppStorage("questionRepeatLimit") var questionRepeatLimit: Int = 30 {
-        didSet { prune() }
-    }
     @AppStorage("appTheme") var appTheme: String = "system"
     
     @Published var showingImportSheet = false
@@ -35,10 +32,6 @@ final class SettingsViewModel: ObservableObject {
     
     func clearVerbs() {
         withAnimation { repo.clearVerbs() }
-    }
-    
-    func clearQuestions() {
-        withAnimation { repo.clearQuestions() }
     }
     
     func exportBackup() {
